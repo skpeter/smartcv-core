@@ -1,3 +1,4 @@
+print("Initializing...")
 import sys
 import os
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -75,14 +76,18 @@ def capture_screen():
                     continue
                 else:
                     raise e
-    else:
-        # Find the window by its title
-        windows = gw.getWindowsWithTitle(executable_title)
-        if windows:
-            window = windows[0]
-        else:
-            print(f"Executable {executable_title} not found. Ensure it is running and visible.")
-            return False, None, None
+    elif capture_mode == 'game':
+        capture_attempts = 0
+        while True:
+            windows = gw.getWindowsWithTitle(executable_title)
+            if windows:
+                window = windows[0]
+                if capture_attempts > 0: print(f"Found executable {executable_title}")
+                break
+            else:
+                if capture_attempts < 1: print(f"Executable {executable_title} not found. Ensure it is running and visible.")
+                capture_attempts += 1
+                continue
 
         # Get the window's bounding box
         # Get the window's dimensions
@@ -239,7 +244,6 @@ def start_websocket_server(payload:dict, lock: threading.Lock):
     asyncio.run(start_server(payload, lock))
 
 if __name__ == "__main__":
-    print("Initializing...")
     broadcast_thread = threading.Thread(target=broadcast.broadcast_device_info, args=(routines.client_name,), daemon=True).start()
     detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, payload, lock), daemon=True).start()
     websocket_thread = threading.Thread(target=start_websocket_server, args=(payload, lock), daemon=True).start()
