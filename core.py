@@ -27,8 +27,6 @@ config = configparser.ConfigParser()
 config.read('config.ini')
 previous_states = [None] # list of previous states to be used for state change detection
 processing_message = False
-lock = threading.Lock()
-
 reader = easyocr.Reader(['en'])
 
 refresh_rate = config.getfloat('settings', 'refresh_rate')
@@ -156,14 +154,13 @@ def read_text(img, region: tuple[int, int, int, int], colored:bool=False, contra
 def run_detection_loop(
     state_to_functions: Dict[Optional[str], List[Callable]],
     payload: dict,
-    lock: threading.Lock,
 ):
     while True:
         threads = []
         try:
             functions = state_to_functions.get(payload.get('state'), [])
             for func in functions:
-                t = threading.Thread(target=func, args=(payload, lock))
+                t = threading.Thread(target=func, args=(payload,))
                 t.start()
                 threads.append(t)
             for t in threads:
@@ -190,25 +187,24 @@ async def send_data(payload, websocket):
         if "no close frame received or sent" not in str(e):
             print(f"Connection error from client: {e}")
 
-async def receive_data(payload:dict, websocket, lock: threading.Lock):
+async def receive_data(payload:dict, websocket):
     try:
         async for message in websocket:
             if "confirm-entrants:" in message and processing_message == False: # and config.get('settings', 'capture_mode') == 'game':
                 print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"),f"- Received request to confirm players:", str(message).replace("confirm-entrants:", "").strip().split(":"))
                 if str(payload['players'][0]['name']) in str(message) and str(payload['players'][1]['name']) in str(message): return True
                 def doTask():
-                    with lock:
-                        global processing_message
-                        processing_message = True
-                        players = str(message).replace("confirm-entrants:", "").strip().split(":")
-                        chosen_player = dialog.choose_player_side(players[0], players[1])
-                        if chosen_player == players[0]:
-                            payload['players'][0]['name'] = players[0]
-                            payload['players'][1]['name'] = players[1]
-                        elif chosen_player == players[1]:
-                            payload['players'][0]['name'] = players[1]
-                            payload['players'][1]['name'] = players[0]
-                        processing_message = False
+                    global processing_message
+                    processing_message = True
+                    players = str(message).replace("confirm-entrants:", "").strip().split(":")
+                    chosen_player = dialog.choose_player_side(players[0], players[1])
+                    if chosen_player == players[0]:
+                        payload['players'][0]['name'] = players[0]
+                        payload['players'][1]['name'] = players[1]
+                    elif chosen_player == players[1]:
+                        payload['players'][0]['name'] = players[1]
+                        payload['players'][1]['name'] = players[0]
+                    processing_message = False
                 threading.Thread(target=doTask, daemon=True).start()
                 time.sleep(refresh_rate)
     except websockets.exceptions.ConnectionClosedOK:
@@ -217,9 +213,9 @@ async def receive_data(payload:dict, websocket, lock: threading.Lock):
         if "no close frame received or sent" not in str(e):
             print(f"Connection error from client: {e}")
 
-async def handle_connection(payload:dict, websocket, lock: threading.Lock):
+async def handle_connection(payload:dict, websocket):
     send_task = asyncio.create_task(send_data(payload, websocket))
-    receive_task = asyncio.create_task(receive_data(payload, websocket, lock))
+    receive_task = asyncio.create_task(receive_data(payload, websocket))
     done, pending = await asyncio.wait(
         [send_task, receive_task],
         return_when=asyncio.FIRST_COMPLETED,
@@ -227,13 +223,13 @@ async def handle_connection(payload:dict, websocket, lock: threading.Lock):
     for task in pending:
         task.cancel()
 
-def start_websocket_server(payload:dict, lock: threading.Lock):
+def start_websocket_server(payload:dict):
     import websockets
     import asyncio
 
-    async def start_server(payload:dict, lock: threading.Lock):
+    async def start_server(payload:dict):
         async with websockets.serve(
-            lambda ws: handle_connection(ws, payload, lock),
+            lambda ws: handle_connection(ws, payload),
             "0.0.0.0",
             config.getint('settings', 'server_port'),
             ping_interval=60,
@@ -241,12 +237,12 @@ def start_websocket_server(payload:dict, lock: threading.Lock):
             close_timeout=15
         ):
             await asyncio.Future()  # run forever
-    asyncio.run(start_server(payload, lock))
+    asyncio.run(start_server(payload))
 
 if __name__ == "__main__":
     broadcast_thread = threading.Thread(target=broadcast.broadcast_device_info, args=(routines.client_name,), daemon=True).start()
-    detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, payload, lock), daemon=True).start()
-    websocket_thread = threading.Thread(target=start_websocket_server, args=(payload, lock), daemon=True).start()
+    detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, payload), daemon=True).start()
+    websocket_thread = threading.Thread(target=start_websocket_server, args=(payload,), daemon=True).start()
     print("All systems go. Please head to the character selection screen to start detection.\n")
 
     while True:
