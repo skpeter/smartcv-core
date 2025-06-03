@@ -111,6 +111,19 @@ def capture_screen():
     scale_y = image_height / base_height
     return img, scale_x, scale_y
 
+def get_color_match_in_region(img: ImageFile, region:tuple[int, int, int, int], target_color:tuple, deviation:float):
+    cropped_area = img.crop(region)
+    deviation = 0.15
+    width, height = cropped_area.size
+    total_pixels = width * height
+    matching_pixels = 0
+
+    for i in range(width):
+        for j in range(height):
+            if is_within_deviation(cropped_area.getpixel((i, j)), target_color, deviation):
+                matching_pixels += 1
+    return matching_pixels / total_pixels
+
 def read_text(img, region: tuple[int, int, int, int], colored:bool=False, contrast:int=None):
     # print("Attempting to read text...")
     # Define the area to read
