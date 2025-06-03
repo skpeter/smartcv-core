@@ -169,7 +169,7 @@ def run_detection_loop(
             print(traceback.format_exc())
         time.sleep(config.get('settings', 'refresh_rate'))
 
-async def send_data(páyload, websocket):
+async def send_data(payload, websocket):
     try:
         while True:
             data = json.dumps(payload)
