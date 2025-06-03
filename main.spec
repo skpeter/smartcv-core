@@ -3,22 +3,10 @@
 block_cipher = None
 
 a = Analysis(
-    ['main.py'],
-    pathex=['.'],
+    ['./smartcv_core/core.py'],
+    pathex=['.', './smartcv_core'],
     binaries=[],
     hiddenimports=[
-        'configparser',
-        'PIL.Image',
-        'PIL.ImageFile',
-        'cv2',
-        'numpy',
-        'threading',
-        'time',
-        'gc',
-        'json',
-        'websockets',
-        'asyncio',
-        'easyocr'
         'torch, torchvision, torchaudio'
     ],
     hookspath=[],
@@ -50,7 +38,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.ico',
+    icon='smartcv_core/icon.ico',
     console=True
 )
 
