@@ -3,8 +3,8 @@
 block_cipher = None
 
 a = Analysis(
-    ['./smartcv_core/core.py'],
-    pathex=['.', './smartcv_core'],
+    ['../smartcv_core/core.py'],
+    pathex=['.', '../smartcv_core'],
     binaries=[],
     hiddenimports=[
         'torch, torchvision, torchaudio'
