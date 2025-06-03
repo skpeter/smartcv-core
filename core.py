@@ -167,7 +167,7 @@ def run_detection_loop(
             print(f"Error: {str(e)}")
             print("Stack trace:")
             print(traceback.format_exc())
-        time.sleep(config.get('settings', 'refresh_rate'))
+        time.sleep(config.getfloat('settings', 'refresh_rate'))
 
 async def send_data(payload, websocket):
     try:
@@ -241,10 +241,8 @@ def start_websocket_server(payload:dict, lock: threading.Lock):
 if __name__ == "__main__":
     print("Initializing...")
     broadcast_thread = threading.Thread(target=broadcast.broadcast_device_info, args=(routines.client_name,), daemon=True).start()
-    detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, lock), daemon=True).start()
+    detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, payload, lock), daemon=True).start()
     websocket_thread = threading.Thread(target=start_websocket_server, args=(payload, lock), daemon=True).start()
-
-    time.sleep(1)
     print("All systems go. Please head to the character selection screen to start detection.\n")
 
     while True:
