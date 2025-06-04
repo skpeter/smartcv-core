@@ -54,8 +54,9 @@ payload = {
     ]
 }
 
-def print_with_timestamp(message):
-    print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"),f"- {message}")
+def print_with_time(*args, **kwargs):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(timestamp, "- ", *args, **kwargs)
 
 # Check if the pixel color is within the deviation range
 def is_within_deviation(color1, color2, deviation):
@@ -114,7 +115,7 @@ def capture_screen():
     scale_y = image_height / base_height
     return img, scale_x, scale_y
 
-def get_color_match_in_region(img: ImageFile, region:tuple[int, int, int, int], target_color:tuple, deviation:float):
+def get_color_match_in_region(img, region:tuple[int, int, int, int], target_color:tuple, deviation:float):
     cropped_area = img.crop(region)
     deviation = 0.15
     width, height = cropped_area.size
@@ -127,18 +128,21 @@ def get_color_match_in_region(img: ImageFile, region:tuple[int, int, int, int], 
                 matching_pixels += 1
     return matching_pixels / total_pixels
 
-def read_text(img, region: tuple[int, int, int, int], colored:bool=False, contrast:int=None):
+def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, contrast:int=None, allowlist:str=None):
     # print("Attempting to read text...")
     # Define the area to read
-    x, y, w, h = region
-    cropped_img = img.crop((x, y, x + w, y + h))
-    cropped_img = np.array(cropped_img)
+    if region:
+        x, y, w, h = region
+        img = img.crop((x, y, x + w, y + h))
 
-    if not colored: cropped_img = cv2.cvtColor(np.array(cropped_img), cv2.COLOR_RGB2GRAY)
-    else: cropped_img = cv2.cvtColor(np.array(cropped_img), cv2.COLOR_RGB2BGR)
-    if contrast: cropped_img = cv2.convertScaleAbs(cropped_img, alpha=contrast, beta=0)
+    if not colored: img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
+    else: img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    if contrast: img = cv2.convertScaleAbs(img, alpha=contrast, beta=0)
     # Use OCR to read the text from the image
-    result = reader.readtext(cropped_img, paragraph=False)
+    result = reader.readtext(img, paragraph=False, allowlist=allowlist)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"cropped_{timestamp}.png"
+    cv2.imwrite(filename, img)
 
     # Extract the text
     if result:
@@ -146,7 +150,7 @@ def read_text(img, region: tuple[int, int, int, int], colored:bool=False, contra
     else: result = None
 
     # Release memory
-    del cropped_img
+    del img
     gc.collect()
 
     return result
