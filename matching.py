@@ -81,4 +81,4 @@ def findBestMatch(s: str, candidates: list[str], p=0.1, minimum=0.6):
         if similarity > highest_similarity:
             highest_similarity = similarity
             best_match = candidate
-    return best_match if highest_similarity > minimum else None, best_match
+    return best_match if highest_similarity > minimum else None, highest_similarity
