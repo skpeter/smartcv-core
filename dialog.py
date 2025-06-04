@@ -1,11 +1,11 @@
 import tkinter as tk
 import threading, time
-import pygame
 import pygetwindow as gw
 import tkinter.font as tkFont
 import configparser
 config = configparser.ConfigParser()
 config.read('config.ini')
+pygame = None
 
 def on_focus_in(event):
     current_font = tkFont.Font(font=event.widget.cget("font"))
@@ -37,19 +37,15 @@ def unfocus_game(delay=500):
     temp.mainloop()
 
 def choose_player_side(player1: str, player2: str):
-    pygame.init()
-    pygame.joystick.init()
-
+    global pygame
     chosen_player = {"name": None}
     current_selection = {"option": None}
 
-
-    def select_player(name):
-        chosen_player["name"] = name
-        fade_out()
-
     unfocus_game()
-    time.sleep(1)
+    if not pygame: import pygame
+    else: time.sleep(1)
+    pygame.init()
+    pygame.joystick.init()
     root = tk.Tk()
     root.configure(bg="dark gray")
     root.overrideredirect(True)  # removes the title bar and close button
@@ -92,6 +88,10 @@ def choose_player_side(player1: str, player2: str):
 
     prompt = tk.Label(container, font=("Helvetica", 24), text="Select which player will be Player 1:\n⬅️ (left side)\nControllers are enabled!    Press X / A / Square to select", bg="dark gray")
     prompt.pack(pady=10)
+    
+    def select_player(name):
+        chosen_player["name"] = name
+        fade_out()
 
     button1 = tk.Button(container, text=player1, width=50, font=("Helvetica", 32), command=lambda: select_player(player1))
     button1.pack(padx=10, pady=5)
@@ -173,4 +173,4 @@ def choose_player_side(player1: str, player2: str):
     return chosen_player["name"]
 
 if __name__ == "__main__": # for testing only
-    choose_player_side("Juliana", "Andromeda")
+    choose_player_side("Player 1", "Player 2")
