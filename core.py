@@ -116,7 +116,8 @@ def capture_screen():
     return img, scale_x, scale_y
 
 def get_color_match_in_region(img, region:tuple[int, int, int, int], target_color:tuple, deviation:float):
-    cropped_area = img.crop(region)
+    x, y, w, h = region
+    cropped_area = img.crop((x, y, x + w, y + h))
     deviation = 0.15
     width, height = cropped_area.size
     total_pixels = width * height
