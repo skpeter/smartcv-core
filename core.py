@@ -25,13 +25,12 @@ import traceback
 from datetime import datetime
 config = configparser.ConfigParser()
 config.read('config.ini')
-previous_states = [None] # list of previous states to be used for state change detection
 processing_message = False
 reader = easyocr.Reader(['en'])
 
 refresh_rate = config.getfloat('settings', 'refresh_rate')
 capture_mode = config.get('settings', 'capture_mode')
-executable_title = config.get('settings', 'executable_title')
+executable_title = config.get('settings', 'executable_title', fallback="")
 feed_path = config.get('settings', 'feed_path')
 
 base_height = 1080
@@ -56,7 +55,7 @@ payload = {
 
 def print_with_time(*args, **kwargs):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(timestamp, "- ", *args, **kwargs)
+    print(timestamp, "-", *args, **kwargs)
 
 # Check if the pixel color is within the deviation range
 def is_within_deviation(color1, color2, deviation):
@@ -192,6 +191,7 @@ def run_detection_loop(
         try:
             functions = state_to_functions.get(payload.get('state'), [])
             for func in functions:
+                if not func: continue
                 t = threading.Thread(target=func, args=(payload,))
                 t.start()
                 threads.append(t)
