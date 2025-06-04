@@ -115,6 +115,23 @@ def capture_screen():
     scale_y = image_height / base_height
     return img, scale_x, scale_y
 
+def detect_image(img, template_file:str, region:tuple[int, int, int, int]=None):
+    # Crop the specific area
+    if region:
+        x, y, w, h = region
+        img = img.crop((x, y, x + w, y + h))
+    img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
+    
+    # Load the template images
+    template = cv2.imread(template_file, cv2.IMREAD_GRAYSCALE)
+    
+    if template is None:
+        raise FileNotFoundError("Template image not found")
+    
+    # Perform template matching
+    res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
+    return np.max(res)
+
 def get_color_match_in_region(img, region:tuple[int, int, int, int], target_color:tuple, deviation:float):
     x, y, w, h = region
     cropped_area = img.crop((x, y, x + w, y + h))
@@ -129,7 +146,7 @@ def get_color_match_in_region(img, region:tuple[int, int, int, int], target_colo
                 matching_pixels += 1
     return matching_pixels / total_pixels
 
-def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, contrast:int=None, allowlist:str=None):
+def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, contrast:int=None, allowlist:str=None, contrast_ths=0.7):
     # print("Attempting to read text...")
     # Define the area to read
     if region:
@@ -140,7 +157,7 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
     else: img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     if contrast: img = cv2.convertScaleAbs(img, alpha=contrast, beta=0)
     # Use OCR to read the text from the image
-    result = reader.readtext(img, paragraph=False, allowlist=allowlist)
+    result = reader.readtext(img, paragraph=False, allowlist=allowlist, contrast_ths=contrast_ths)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"cropped_{timestamp}.png"
     cv2.imwrite(filename, img)
