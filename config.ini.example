@@ -3,6 +3,10 @@
 server_port = 6565
 ;capture_mode = The way which the game will be captured. Set to "obs" for OBS or "game" for direct game capture.
 capture_mode = game
+;enable_broadcast = Whether we should broadcast its IP to the local network allowing for other applications to connect to it easier. Enabled by default (true).
+enable_broadcast=true
+;enable_confirmation_dialog = Whether we should display a popup before the match asking players to confirm which side they're playing on. Enabled by default (true).
+enable_dialog=true
 ;feed_path = Path to the feed image OBS will export - Set this if using "obs" capture mode.
 feed_path = C:/Users/USER/Videos/OBS/feed.webp
 ;executable_title = The title of game window. Should be "Street Fighter 6" or a variable of that - Set this if using "game" capture mode.
