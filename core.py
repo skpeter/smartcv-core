@@ -1,13 +1,20 @@
-print("Initializing...")
 import sys
 import os
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, parent_dir)
-import routines
+if __name__ == "__main__":
+    print("Initializing...")
+    from routines import client_name
+    try:
+        from build_info import __version__
+    except: __version__ = "DEV"
+    print(f"Welcome to SmartCV type: {client_name.split("-")[1]} - build: {__version__}")
+    from routines import payload
 import configparser
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES=True
 from typing import Callable, Dict, List, Optional
+import routines
 import dialog
 import broadcast
 import cv2
@@ -22,6 +29,7 @@ import asyncio
 import mss
 import pygetwindow as gw
 import traceback
+import requests
 from datetime import datetime
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -37,21 +45,6 @@ base_height = 1080
 base_width = 1920
 
 
-payload = {
-    "state": None,
-    "players": [
-        {
-            "name": None,
-            "character": None,
-            "rounds": 2,
-        },
-        {
-            "name": None,
-            "character": None,
-            "rounds": 2,
-        }
-    ]
-}
 
 def print_with_time(*args, **kwargs):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -131,6 +124,15 @@ def detect_image(img, template_file:str, region:tuple[int, int, int, int]=None):
     res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
     return np.max(res)
 
+def crop_image_y(img, crop_area:tuple[int,int]):
+    crop_start, crop_end = crop_area
+    img = np.array(img)
+
+    # Remove the single text area from the image
+    left = img[:, :crop_start]
+    right = img[:, crop_end:]
+    return np.hstack([left, right])
+
 def get_color_match_in_region(img, region:tuple[int, int, int, int], target_color:tuple, deviation:float):
     x, y, w, h = region
     cropped_area = img.crop((x, y, x + w, y + h))
@@ -182,6 +184,23 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
 
     return result
 
+def get_latest_build_number():
+    url = f'https://api.github.com/repos/skpeter/{client_name}/releases/latest'
+    try:
+        r = requests.get(url, timeout=5)
+        r.raise_for_status()
+        tag = r.json()['tag_name']
+        if 'release-main-' in tag:
+            return int(tag.rsplit('-', 1)[-1])
+    except Exception as e:
+        print(f"Update check failed: {e}")
+    return None
+
+def is_update_available():
+    latest = get_latest_build_number()
+    return latest if latest is not None and int(__version__) < latest else False
+
+
 def run_detection_loop(
     state_to_functions: Dict[Optional[str], List[Callable]],
     payload: dict,
@@ -214,7 +233,6 @@ async def send_data(payload, websocket):
             size = len(data.encode('utf-8'))
             if size > 1024 * 1024:  # 1MB
                 print(f"Warning: Large payload size ({size} bytes)")
-            refresh_rate = config.getfloat('settings', 'refresh_rate')
             await websocket.send(json.dumps(payload))
             await asyncio.sleep(refresh_rate)
     except websockets.exceptions.ConnectionClosedOK:
@@ -226,7 +244,7 @@ async def send_data(payload, websocket):
 async def receive_data(payload:dict, websocket):
     try:
         async for message in websocket:
-            if "confirm-entrants:" in message and processing_message == False: # and config.get('settings', 'capture_mode') == 'game':
+            if "confirm-entrants:" in message and processing_message == False and config.get('settings', 'capture_mode') == 'game':
                 print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"),f"- Received request to confirm players:", str(message).replace("confirm-entrants:", "").strip().split(":"))
                 if str(payload['players'][0]['name']) in str(message) and str(payload['players'][1]['name']) in str(message): return True
                 def doTask():
@@ -249,7 +267,7 @@ async def receive_data(payload:dict, websocket):
         if "no close frame received or sent" not in str(e):
             print(f"Connection error from client: {e}")
 
-async def handle_connection(payload:dict, websocket):
+async def handle_connection(websocket, payload:dict):
     send_task = asyncio.create_task(send_data(payload, websocket))
     receive_task = asyncio.create_task(receive_data(payload, websocket))
     done, pending = await asyncio.wait(
@@ -276,6 +294,8 @@ def start_websocket_server(payload:dict):
     asyncio.run(start_server(payload))
 
 if __name__ == "__main__":
+    new_ver = is_update_available()
+    if new_ver: print(f"New build {new_ver} available (you are on build {__version__}). Head over to \nhttps://github.com/skpeter/{client_name} to download it.")
     broadcast_thread = threading.Thread(target=broadcast.broadcast_device_info, args=(routines.client_name,), daemon=True).start()
     detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, payload), daemon=True).start()
     websocket_thread = threading.Thread(target=start_websocket_server, args=(payload,), daemon=True).start()
