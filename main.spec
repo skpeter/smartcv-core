@@ -3,8 +3,8 @@
 block_cipher = None
 
 a = Analysis(
-    ['../smartcv_core/core.py'],
-    pathex=['.', '../smartcv_core'],
+    ['../core/core.py'],
+    pathex=['.', '../core'],
     binaries=[],
     hiddenimports=[
         'torch, torchvision, torchaudio'
@@ -38,7 +38,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='../smartcv_core/icon.ico',
+    icon='../core/icon.ico',
     console=True
 )
 
