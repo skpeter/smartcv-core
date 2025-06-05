@@ -299,7 +299,7 @@ if __name__ == "__main__":
     broadcast_thread = threading.Thread(target=broadcast.broadcast_device_info, args=(routines.client_name,), daemon=True).start()
     detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, payload), daemon=True).start()
     websocket_thread = threading.Thread(target=start_websocket_server, args=(payload,), daemon=True).start()
-    print("All systems go. Please head to the character selection screen to start detection.\n")
+    print("All systems go. Please head to the character or stage selection screen to start detection.\n")
 
     while True:
         time.sleep(1)
