@@ -6,7 +6,7 @@ if __name__ == "__main__":
     print("Initializing...")
     from routines import client_name
     try:
-        from build_info import __version__
+        from build_info import __version__ # type: ignore
     except: __version__ = "DEV"
     print(f"Welcome to SmartCV type: {client_name.split("-")[1]} - build: {__version__}")
     from routines import payload
