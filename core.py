@@ -8,7 +8,7 @@ if __name__ == "__main__":
     try:
         from build_info import __version__ # type: ignore
     except: __version__ = "DEV"
-    print(f"Welcome to SmartCV type: {client_name.split("-")[1]} - build: {__version__}")
+    print(f"Welcome to {client_name.upper()} - build: {__version__}")
     from routines import payload
 import configparser
 from PIL import Image, ImageFile
