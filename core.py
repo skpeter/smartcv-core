@@ -1,10 +1,8 @@
 import sys
 import os
-import time
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, parent_dir)
 if __name__ == "__main__":
-    print(int(round(time.time() * 1000)))
     print("Initializing...")
     from routines import client_name
     try:
@@ -12,6 +10,7 @@ if __name__ == "__main__":
     except: __version__ = "DEV"
     print(f"Welcome to {client_name.upper()} - build: {__version__}")
     from routines import payload
+import time
 import configparser
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES=True
@@ -305,6 +304,5 @@ if __name__ == "__main__":
     detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, payload), daemon=True).start()
     websocket_thread = threading.Thread(target=start_websocket_server, args=(payload,), daemon=True).start()
     print("All systems go. Please head to the character or stage selection screen to start detection.\n")
-    print(int(round(time.time() * 1000)))
     while True:
         time.sleep(1)
