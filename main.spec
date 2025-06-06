@@ -4,7 +4,7 @@ block_cipher = None
 
 a = Analysis(
     ['../core/core.py'],
-    pathex=['.', '../core'],
+    pathex=['.', '../core', 'core'],
     binaries=[],
     hiddenimports=[
         'torch, torchvision, torchaudio'
