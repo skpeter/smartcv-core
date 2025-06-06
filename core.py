@@ -15,8 +15,8 @@ from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES=True
 from typing import Callable, Dict, List, Optional
 import routines
-import dialog
-import broadcast
+from core import dialog
+from core import broadcast
 import cv2
 import numpy as np
 import threading
