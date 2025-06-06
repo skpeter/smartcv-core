@@ -1,8 +1,10 @@
 import sys
 import os
+import time
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, parent_dir)
 if __name__ == "__main__":
+    print(int(round(time.time() * 1000)))
     print("Initializing...")
     from routines import client_name
     try:
@@ -20,7 +22,6 @@ from core import broadcast
 import cv2
 import numpy as np
 import threading
-import time
 import easyocr
 import gc
 import json
@@ -34,8 +35,7 @@ from datetime import datetime
 config = configparser.ConfigParser()
 config.read('config.ini')
 processing_message = False
-reader = easyocr.Reader(['en'])
-
+reader = None 
 refresh_rate = config.getfloat('settings', 'refresh_rate')
 capture_mode = config.get('settings', 'capture_mode')
 executable_title = config.get('settings', 'executable_title', fallback="")
@@ -44,6 +44,11 @@ feed_path = config.get('settings', 'feed_path')
 base_height = 1080
 base_width = 1920
 
+def get_reader():
+    global reader
+    if reader is None:
+        reader = easyocr.Reader(['en'])  # Lazy initialization
+    return reader
 
 
 def print_with_time(*args, **kwargs):
@@ -167,7 +172,7 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
     if not colored: img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
     else: img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     if contrast: img = cv2.convertScaleAbs(img, alpha=contrast, beta=0)
-    result = reader.readtext(img, paragraph=False, allowlist=allowlist, contrast_ths=contrast_ths, low_text=low_text)
+    result = get_reader().readtext(img, paragraph=False, allowlist=allowlist, contrast_ths=contrast_ths, low_text=low_text)
     if config.getboolean('settings', 'debug_mode', fallback=False):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"cropped_{timestamp}.png"
@@ -300,6 +305,6 @@ if __name__ == "__main__":
     detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, payload), daemon=True).start()
     websocket_thread = threading.Thread(target=start_websocket_server, args=(payload,), daemon=True).start()
     print("All systems go. Please head to the character or stage selection screen to start detection.\n")
-
+    print(int(round(time.time() * 1000)))
     while True:
         time.sleep(1)
