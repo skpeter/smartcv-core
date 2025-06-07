@@ -55,7 +55,7 @@ def print_with_time(*args, **kwargs):
     print(timestamp, "-", *args, **kwargs)
 
 # Check if the pixel color is within the deviation range
-def is_within_deviation(color1, color2, deviation):
+def is_within_deviation(color1, color2, deviation=0.1):
     return all(abs(c1 - c2) / 255.0 <= deviation for c1, c2 in zip(color1, color2))
 
 def capture_screen():
@@ -110,6 +110,76 @@ def capture_screen():
     scale_x = image_width / base_width
     scale_y = image_height / base_height
     return img, scale_x, scale_y
+
+
+def is_within_deviation(pixel, target_color, deviation):
+    return np.all(np.abs(np.array(pixel[:3]) - np.array(target_color)) <= 255 * deviation)
+
+def find_color_runs_np(row, color, deviation=0.1):
+    runs = []
+    in_run = False
+    start_x = 0
+    for x, pixel in enumerate(row):
+        if is_within_deviation(pixel, color, deviation):
+            if not in_run:
+                in_run = True
+                start_x = x
+        else:
+            if in_run:
+                in_run = False
+                runs.append((start_x, x - 1))
+    if in_run:
+        runs.append((start_x, len(row) - 1))
+    return runs
+
+def merge_runs_with_margin(runs, margin, width):
+    merged = []
+    for start, end in runs:
+        start = max(start - margin, 0)
+        end = min(end + margin, width - 1)
+        if not merged:
+            merged.append((start, end))
+        else:
+            last_start, last_end = merged[-1]
+            if start <= last_end + 1:
+                merged[-1] = (last_start, max(last_end, end))
+            else:
+                merged.append((start, end))
+    return merged
+
+def stitch_text_regions(image, y_line, color, margin=10, deviation=0.1):
+    if image.ndim == 2:
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    elif image.shape[2] == 4:
+        bgr_image = image[:, :, :3]
+        alpha_channel = image[:, :, 3:]
+    else:
+        bgr_image = image
+        alpha_channel = None
+
+    row = bgr_image[y_line]
+    raw_runs = find_color_runs_np(row, color, deviation)
+    if not raw_runs:
+        return []
+
+    width = image.shape[1]
+    merged_runs = merge_runs_with_margin(raw_runs, margin, width)
+
+    cropped_strips = []
+    for start_x, end_x in merged_runs:
+        strip = image[:, start_x:end_x + 1]
+        cropped_strips.append(strip)
+
+    total_width = sum(strip.shape[1] for strip in cropped_strips)
+    stitched = np.zeros((image.shape[0], total_width, image.shape[2]), dtype=image.dtype)
+
+    x_offset = 0
+    for strip in cropped_strips:
+        stitched[:, x_offset:x_offset + strip.shape[1]] = strip
+        x_offset += strip.shape[1]
+
+    return stitched
+
 
 def detect_image(img, template_file:str, region:tuple[int, int, int, int]=None):
     # Crop the specific area
@@ -172,15 +242,15 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
     else: img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     if contrast: img = cv2.convertScaleAbs(img, alpha=contrast, beta=0)
     result = get_reader().readtext(img, paragraph=False, allowlist=allowlist, contrast_ths=contrast_ths, low_text=low_text)
-    if config.getboolean('settings', 'debug_mode', fallback=False):
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"cropped_{timestamp}.png"
-        cv2.imwrite(filename, img)
 
     # Extract the text
     if result:
         result = ' '.join([res[1] for res in result])
     else: result = None
+    if config.getboolean('settings', 'debug_mode', fallback=False):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{result}_{timestamp}.png"
+        cv2.imwrite(filename, img)
 
     # Release memory
     del img
