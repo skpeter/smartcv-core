@@ -231,7 +231,7 @@ def remove_neighbor_duplicates(input_list):
             result.append(item)
     return result
 
-def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, contrast:int=None, allowlist:str=None, low_text=0.4, contrast_ths=0.7):
+def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, contrast:int=1, allowlist:str=None, low_text=0.4):
     # print("Attempting to read text...")
     # Define the area to read
     if region:
@@ -240,8 +240,9 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
 
     if not colored: img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
     else: img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-    if contrast: img = cv2.convertScaleAbs(img, alpha=contrast, beta=0)
-    result = get_reader().readtext(img, paragraph=False, allowlist=allowlist, contrast_ths=contrast_ths, low_text=low_text)
+    if contrast: img = cv2.convertScaleAbs(img, alpha=contrast, beta=-(contrast * 50))
+
+    result = get_reader().readtext(img, paragraph=False, allowlist=allowlist, low_text=low_text)
 
     # Extract the text
     if result:
