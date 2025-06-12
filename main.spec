@@ -7,6 +7,7 @@ a = Analysis(
     pathex=['.', '../core', 'core'],
     binaries=[],
     hiddenimports=[
+        'numpy._core._exceptions',
         'torch, torchvision, torchaudio'
     ],
     hookspath=[],
