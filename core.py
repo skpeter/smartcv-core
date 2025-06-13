@@ -63,6 +63,7 @@ def capture_screen():
         while True:
             try:
                 img = Image.open(feed_path)
+                img.load()
                 break
             except (OSError, Image.UnidentifiedImageError) as e:
                 if "truncated" in str(e) or "cannot identify image file" in str(e) or "could not create decoder object" in str(e):
@@ -198,26 +199,20 @@ def detect_image(img, template_file:str, region:tuple[int, int, int, int]=None):
     res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
     return np.max(res)
 
-def crop_image_y(img, crop_area:tuple[int,int]):
-    crop_start, crop_end = crop_area
-    img = np.array(img)
-
-    # Remove the single text area from the image
-    left = img[:, :crop_start]
-    right = img[:, crop_end:]
-    return np.hstack([left, right])
-
-def get_color_match_in_region(img, region:tuple[int, int, int, int], target_color:tuple, deviation:float):
+def get_color_match_in_region(img, region:tuple[int, int, int, int], target_color:tuple, deviation:float=0.15):
     x, y, w, h = region
     cropped_area = img.crop((x, y, x + w, y + h))
-    deviation = 0.15
     width, height = cropped_area.size
     total_pixels = width * height
     matching_pixels = 0
 
     for i in range(width):
         for j in range(height):
-            if is_within_deviation(cropped_area.getpixel((i, j)), target_color, deviation):
+            pixel = cropped_area.getpixel((i, j))
+            # If grayscale, convert to tuple for compatibility
+            if isinstance(pixel, int):
+                pixel = (pixel, pixel, pixel)
+            if is_within_deviation(pixel, target_color, deviation):
                 matching_pixels += 1
     return matching_pixels / total_pixels
 
@@ -283,10 +278,13 @@ def run_detection_loop(
     while True:
         threads = []
         try:
+            # Capture the screen ONCE per loop
+            img, scale_x, scale_y = capture_screen()
             functions = state_to_functions.get(payload.get('state'), [])
             for func in functions:
                 if not func: continue
-                t = threading.Thread(target=func, args=(payload,))
+                # Pass the image and scales to each function
+                t = threading.Thread(target=func, args=(payload, img, scale_x, scale_y))
                 t.start()
                 threads.append(t)
             for t in threads:
