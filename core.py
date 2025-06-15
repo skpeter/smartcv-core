@@ -241,11 +241,11 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
 
     # Extract the text
     if result:
-        result = ' '.join([res[1] for res in result])
+        result = [res[1] for res in result]
     else: result = None
     if config.getboolean('settings', 'debug_mode', fallback=False):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{result}_{timestamp}.png"
+        filename = f"{result.join('_') if type(result) == 'list' else ''}_{timestamp}.png"
         cv2.imwrite(filename, img)
 
     # Release memory
