@@ -245,7 +245,7 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
     else: result = None
     if config.getboolean('settings', 'debug_mode', fallback=False):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{result.join('_') if type(result) == 'list' else ''}_{timestamp}.png"
+        filename = f"{'_'.join(result) if isinstance(result, list) else ''}_{timestamp}.png"
         cv2.imwrite(filename, img)
 
     # Release memory
