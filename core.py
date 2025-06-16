@@ -197,24 +197,34 @@ def detect_image(img, template_file:str, region:tuple[int, int, int, int]=None):
     
     # Perform template matching
     res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
+    del img
+    gc.collect()
     return np.max(res)
 
-def get_color_match_in_region(img, region:tuple[int, int, int, int], target_color:tuple, deviation:float=0.15):
+def get_color_match_in_region(img, region:tuple[int, int, int, int], target_color:tuple|list[tuple], deviation:float=0.15):
     x, y, w, h = region
     cropped_area = img.crop((x, y, x + w, y + h))
     width, height = cropped_area.size
     total_pixels = width * height
-    matching_pixels = 0
+
+    # Ensure target_color is a list of tuples
+    if isinstance(target_color, tuple) and not isinstance(target_color[0], (tuple, list)):
+        target_color = [target_color]
+
+    matches = {i: 0 for i in range(len(target_color))}
 
     for i in range(width):
         for j in range(height):
             pixel = cropped_area.getpixel((i, j))
-            # If grayscale, convert to tuple for compatibility
             if isinstance(pixel, int):
                 pixel = (pixel, pixel, pixel)
-            if is_within_deviation(pixel, target_color, deviation):
-                matching_pixels += 1
-    return matching_pixels / total_pixels
+            for idx, color in enumerate(target_color):
+                if is_within_deviation(pixel, color, deviation):
+                    matches[idx] += 1
+                    break  # Only count a pixel for the first matching color
+
+    # Return match ratios for each color
+    return {idx: count / total_pixels for idx, count in matches.items()} if len(matches) > 1 else matches[0]
 
 def remove_neighbor_duplicates(input_list):
     if not input_list:
@@ -245,7 +255,7 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
     else: result = None
     if config.getboolean('settings', 'debug_mode', fallback=False):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{'_'.join(result) if isinstance(result, list) else ''}_{timestamp}.png"
+        filename = f"../dev/{'_'.join(result) if isinstance(result, list) else ''}_{timestamp}.png"
         cv2.imwrite(filename, img)
 
     # Release memory
