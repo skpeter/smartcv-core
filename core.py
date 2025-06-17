@@ -31,6 +31,10 @@ import pygetwindow as gw
 import traceback
 import requests
 from datetime import datetime
+import obsws_python as obsws
+import base64
+from io import BytesIO
+
 config = configparser.ConfigParser()
 config.read('config.ini')
 processing_message = False
@@ -38,8 +42,11 @@ reader = None
 refresh_rate = config.getfloat('settings', 'refresh_rate')
 capture_mode = config.get('settings', 'capture_mode')
 executable_title = config.get('settings', 'executable_title', fallback="")
-feed_path = config.get('settings', 'feed_path')
-
+obs = obsws.ReqClient(
+    host=config.get('settings', 'host', fallback='localhost'),
+    port=config.get('settings', 'port', fallback=4455),
+    password=config.get('settings', 'port', fallback='')
+)
 base_height = 1080
 base_width = 1920
 
@@ -58,24 +65,22 @@ def print_with_time(*args, **kwargs):
 def is_within_deviation(color1, color2, deviation=0.1):
     return all(abs(c1 - c2) / 255.0 <= deviation for c1, c2 in zip(color1, color2))
 
-def capture_screen(last_mtime=[None]):
+def capture_screen():
     if capture_mode == 'obs':
         while True:
-            try:
-                mtime = os.path.getmtime(feed_path)
-                if last_mtime[0] == mtime:
-                    time.sleep(0.05)
-                    continue
-                img = Image.open(feed_path)
-                img.load()
-                last_mtime[0] = mtime
-                break
-            except (OSError, Image.UnidentifiedImageError) as e:
-                if "truncated" in str(e) or "cannot identify image file" in str(e) or "could not create decoder object" in str(e):
-                    time.sleep(0.1)
-                    continue
-                else:
-                    raise e
+            response = obs.get_source_screenshot(
+                name=config.get('settings', 'source_title', fallback=""),
+                img_format="webp",
+                width=1920,
+                height=1080,
+                quality=80
+            )
+            prefix = "base64,"
+            idx = response.image_data.find(prefix)
+            img_str = response.image_data[idx + len(prefix):] if idx != -1 else response.image_data
+            img_data = base64.b64decode(img_str)
+            img = Image.open(BytesIO(img_data))
+            break
     elif capture_mode == 'game':
         capture_attempts = 0
         while True:
@@ -118,7 +123,7 @@ def capture_screen(last_mtime=[None]):
 
 
 def is_within_deviation(pixel, target_color, deviation):
-    return np.all(np.abs(np.array(pixel[:3]) - np.array(target_color)) <= 255 * deviation)
+    return np.all(np.abs(np.array(pixel[:3] if type(pixel) == tuple else [pixel, pixel, pixel]) - np.array(target_color)) <= 255 * deviation)
 
 def find_color_runs_np(row, color, deviation=0.1):
     runs = []
@@ -156,14 +161,13 @@ def stitch_text_regions(image_array, y_line, color, margin=10, deviation=0.1):
     if image_array.ndim == 2:
         image_array = cv2.cvtColor(image_array, cv2.COLOR_GRAY2BGR)
     elif image_array.shape[2] == 4:
-        bgr_image = image_array[:, :, :3]
-    else:
-        bgr_image = image_array
+        image_array = image_array[:, :, :3]
+    bgr_image = image_array
 
     row = bgr_image[y_line]
     raw_runs = find_color_runs_np(row, color, deviation)
     if not raw_runs:
-        return []
+        return np.empty((0, 0, 0))
 
     width = image_array.shape[1]
     merged_runs = merge_runs_with_margin(raw_runs, margin, width)
@@ -174,7 +178,7 @@ def stitch_text_regions(image_array, y_line, color, margin=10, deviation=0.1):
         cropped_strips.append(strip)
 
     total_width = sum(strip.shape[1] for strip in cropped_strips)
-    stitched = np.zeros((image_array.shape[0], total_width, image_array.shape[2]), dtype=image_array.dtype)
+    stitched = np.zeros((image_array.shape[0], total_width, image_array.shape[2] if len(image_array.shape) == 3 else image_array.shape[0]), dtype=image_array.dtype)
 
     x_offset = 0
     for strip in cropped_strips:
@@ -239,8 +243,6 @@ def remove_neighbor_duplicates(input_list):
     return result
 
 def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, contrast:int=1, allowlist:str=None, low_text=0.4):
-    # print("Attempting to read text...")
-    # Define the area to read
     if region:
         x, y, w, h = region
         img = img.crop((x, y, x + w, y + h))
@@ -251,7 +253,6 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
 
     result = get_reader().readtext(img, paragraph=False, allowlist=allowlist, low_text=low_text)
 
-    # Extract the text
     if result:
         result = [res[1] for res in result]
     else: result = None
@@ -259,8 +260,6 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"dev/{'_'.join(result) if isinstance(result, list) else ''}_{timestamp}.png"
         cv2.imwrite(filename, img)
-
-    # Release memory
     del img
     gc.collect()
 
@@ -282,7 +281,7 @@ def is_update_available():
     latest = get_latest_build_number()
     return latest if latest is not None and int(__version__) < latest else False
 
-
+last_mtime = None
 def run_detection_loop(
     state_to_functions: Dict[Optional[str], List[Callable]],
     payload: dict,

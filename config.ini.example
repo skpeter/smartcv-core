@@ -1,17 +1,16 @@
 [settings]
-;server_port = The port the server will listen on.
-server_port = 6565
-;capture_mode = The way which the game will be captured. Set to "obs" for OBS or "game" for direct game capture.
-capture_mode = game
-;enable_broadcast = Whether we should broadcast its IP to the local network allowing for other applications to connect to it easier. Enabled by default (true).
-enable_broadcast=true
-;enable_confirmation_dialog = Whether we should display a popup before the match asking players to confirm which side they're playing on. Enabled by default (true).
-enable_dialog=true
-;feed_path = Path to the feed image OBS will export - Set this if using "obs" capture mode.
+server_port = 6565 ;The port the server will listen on.
+capture_mode = game ;The way which the game will be captured. Set to "obs" for OBS or "game" for direct game capture.
+enable_broadcast=true ;Whether we should broadcast its IP to the local network allowing for other applications to connect to it easier. Enabled by default (true).
+enable_dialog=true ;Whether we should display a popup before the match asking players to confirm which side they're playing on. Enabled by default (true).
+source_name = ;Name of the source the game capture is on, if you are using OBS mode.
 feed_path = C:/Users/USER/Videos/OBS/feed.webp
 ;executable_title = The title of game window. Should be "Street Fighter 6" or a variable of that - Set this if using "game" capture mode.
 executable_title =
-;refresh_rate = Should be kept to 0.5 seconds. How often the script will check for changes in the feed image.
-refresh_rate = 0.5
-;debug_mode = Outputs some more data in order to catch errors. Also creates snapshot images of data being read. Disabled by default, not recommended for long usage.
-debug_mode = false
+refresh_rate = 0.5 ;Should be kept to 0.5 seconds. How often the script will check for changes in the feed image.
+debug_mode = false ;Outputs some more data in order to catch errors. Also creates snapshot images of data being read. Disabled by default, not recommended for long usage.
+
+[obs]
+host = localhost
+port = 4455
+password =
