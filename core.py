@@ -58,16 +58,20 @@ def print_with_time(*args, **kwargs):
 def is_within_deviation(color1, color2, deviation=0.1):
     return all(abs(c1 - c2) / 255.0 <= deviation for c1, c2 in zip(color1, color2))
 
-def capture_screen():
+def capture_screen(last_mtime=[None]):
     if capture_mode == 'obs':
         while True:
             try:
+                mtime = os.path.getmtime(feed_path)
+                if last_mtime[0] == mtime:
+                    time.sleep(0.05)
+                    continue
                 img = Image.open(feed_path)
                 img.load()
+                last_mtime[0] = mtime
                 break
             except (OSError, Image.UnidentifiedImageError) as e:
                 if "truncated" in str(e) or "cannot identify image file" in str(e) or "could not create decoder object" in str(e):
-                    # print("Image is truncated or cannot be identified. Retrying...")
                     time.sleep(0.1)
                     continue
                 else:
@@ -148,31 +152,29 @@ def merge_runs_with_margin(runs, margin, width):
                 merged.append((start, end))
     return merged
 
-def stitch_text_regions(image, y_line, color, margin=10, deviation=0.1):
-    if image.ndim == 2:
-        image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-    elif image.shape[2] == 4:
-        bgr_image = image[:, :, :3]
-        alpha_channel = image[:, :, 3:]
+def stitch_text_regions(image_array, y_line, color, margin=10, deviation=0.1):
+    if image_array.ndim == 2:
+        image_array = cv2.cvtColor(image_array, cv2.COLOR_GRAY2BGR)
+    elif image_array.shape[2] == 4:
+        bgr_image = image_array[:, :, :3]
     else:
-        bgr_image = image
-        alpha_channel = None
+        bgr_image = image_array
 
     row = bgr_image[y_line]
     raw_runs = find_color_runs_np(row, color, deviation)
     if not raw_runs:
         return []
 
-    width = image.shape[1]
+    width = image_array.shape[1]
     merged_runs = merge_runs_with_margin(raw_runs, margin, width)
 
     cropped_strips = []
     for start_x, end_x in merged_runs:
-        strip = image[:, start_x:end_x + 1]
+        strip = image_array[:, start_x:end_x + 1]
         cropped_strips.append(strip)
 
     total_width = sum(strip.shape[1] for strip in cropped_strips)
-    stitched = np.zeros((image.shape[0], total_width, image.shape[2]), dtype=image.dtype)
+    stitched = np.zeros((image_array.shape[0], total_width, image_array.shape[2]), dtype=image_array.dtype)
 
     x_offset = 0
     for strip in cropped_strips:
@@ -255,7 +257,7 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
     else: result = None
     if config.getboolean('settings', 'debug_mode', fallback=False):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"../dev/{'_'.join(result) if isinstance(result, list) else ''}_{timestamp}.png"
+        filename = f"dev/{'_'.join(result) if isinstance(result, list) else ''}_{timestamp}.png"
         cv2.imwrite(filename, img)
 
     # Release memory
