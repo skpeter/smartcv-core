@@ -288,6 +288,7 @@ def run_detection_loop(
 ):
     while True:
         threads = []
+        start_time = time.time()
         try:
             # Capture the screen ONCE per loop
             img, scale_x, scale_y = capture_screen()
@@ -304,7 +305,10 @@ def run_detection_loop(
             print(f"Error: {str(e)}")
             print("Stack trace:")
             print(traceback.format_exc())
-        time.sleep(config.getfloat('settings', 'refresh_rate'))
+        elapsed = time.time() - start_time
+        sleep_time = refresh_rate - elapsed
+        if sleep_time > 0:
+            time.sleep(sleep_time)
 
 async def send_data(payload, websocket):
     try:
