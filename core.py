@@ -73,7 +73,7 @@ def capture_screen():
                 img_format="webp",
                 width=1920,
                 height=1080,
-                quality=80
+                quality=90
             )
             prefix = "base64,"
             idx = response.image_data.find(prefix)
@@ -230,7 +230,10 @@ def get_color_match_in_region(img, region:tuple[int, int, int, int], target_colo
                     break  # Only count a pixel for the first matching color
 
     # Return match ratios for each color
-    return {idx: count / total_pixels for idx, count in matches.items()} if len(matches) > 1 else matches[0]
+    if len(matches) > 1:
+        return {idx: count / total_pixels for idx, count in matches.items()}
+    else:
+        return list(matches.values())[0] / total_pixels
 
 def remove_neighbor_duplicates(input_list):
     if not input_list:
