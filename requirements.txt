@@ -7,3 +7,4 @@ websockets
 easyocr
 pygame
 requests
+obsws-python
