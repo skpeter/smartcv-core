@@ -70,7 +70,7 @@ def capture_screen():
                 password=config.get('settings', 'port', fallback='')
             )
             response = obs.get_source_screenshot(
-                name=config.get('settings', 'source_title', fallback=""),
+                name=config.get('obs', 'source_title', fallback=""),
                 img_format="webp",
                 width=1920,
                 height=1080,
