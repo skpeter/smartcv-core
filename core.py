@@ -61,19 +61,15 @@ def print_with_time(*args, **kwargs):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(timestamp, "-", *args, **kwargs)
 
-# Check if the pixel color is within the deviation range
-def is_within_deviation(color1, color2, deviation=0.1):
-    return all(abs(c1 - c2) / 255.0 <= deviation for c1, c2 in zip(color1, color2))
-
 def capture_screen():
     if capture_mode == 'obs':
         while True:
             response = obs.get_source_screenshot(
-                name=config.get('settings', 'source_title', fallback=""),
+                name=config.get('obs', 'source_title', fallback=""),
                 img_format="webp",
-                width=1920,
-                height=1080,
-                quality=90
+                width=config.getint('obs', 'width', fallback=1920),
+                height=config.getint('obs', 'height', fallback=1080),
+                quality=95
             )
             prefix = "base64,"
             idx = response.image_data.find(prefix)
@@ -187,8 +183,11 @@ def stitch_text_regions(image_array, y_line, color, margin=10, deviation=0.1):
 
     return stitched
 
+def resize_template(template, scale_x, scale_y):
+    h, w = template.shape[:2]
+    return cv2.resize(template, (int(w * scale_x), int(h * scale_y)), interpolation=cv2.INTER_AREA)
 
-def detect_image(img, template_file:str, region:tuple[int, int, int, int]=None):
+def detect_image(img, scale_x, scale_y, template_file:str, region:tuple[int, int, int, int]=None):
     # Crop the specific area
     if region:
         x, y, w, h = region
@@ -200,6 +199,8 @@ def detect_image(img, template_file:str, region:tuple[int, int, int, int]=None):
     
     if template is None:
         raise FileNotFoundError("Template image not found")
+    
+    template = resize_template(template, scale_x, scale_y)
     
     # Perform template matching
     res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
