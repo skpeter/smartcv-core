@@ -59,12 +59,12 @@ def print_with_time(*args, **kwargs):
 
 def capture_screen():
     if capture_mode == 'obs':
+        if not obs: obs = obsws.ReqClient(
+            host=config.get('settings', 'host', fallback='localhost'),
+            port=config.get('settings', 'port', fallback=4455),
+            password=config.get('settings', 'port', fallback='')
+        )
         while True:
-            if not obs: obs = obsws.ReqClient(
-                host=config.get('settings', 'host', fallback='localhost'),
-                port=config.get('settings', 'port', fallback=4455),
-                password=config.get('settings', 'port', fallback='')
-            )
             response = obs.get_source_screenshot(
                 name=config.get('obs', 'source_title', fallback=""),
                 img_format="webp",
