@@ -42,11 +42,7 @@ reader = None
 refresh_rate = config.getfloat('settings', 'refresh_rate')
 capture_mode = config.get('settings', 'capture_mode')
 executable_title = config.get('settings', 'executable_title', fallback="")
-obs = obsws.ReqClient(
-    host=config.get('settings', 'host', fallback='localhost'),
-    port=config.get('settings', 'port', fallback=4455),
-    password=config.get('settings', 'port', fallback='')
-)
+obs = None
 base_height = 1080
 base_width = 1920
 
@@ -68,6 +64,11 @@ def is_within_deviation(color1, color2, deviation=0.1):
 def capture_screen():
     if capture_mode == 'obs':
         while True:
+            if not obs: obs = obsws.ReqClient(
+                host=config.get('settings', 'host', fallback='localhost'),
+                port=config.get('settings', 'port', fallback=4455),
+                password=config.get('settings', 'port', fallback='')
+            )
             response = obs.get_source_screenshot(
                 name=config.get('settings', 'source_title', fallback=""),
                 img_format="webp",
