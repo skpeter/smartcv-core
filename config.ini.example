@@ -7,8 +7,6 @@ capture_mode = game
 enable_broadcast=true
 ;enable_confirmation_dialog = Whether we should display a popup before the match asking players to confirm which side they're playing on. Enabled by default (true).
 enable_dialog=true
-;source_name = Name of the source the game capture is on, if you are using OBS mode.
-source_name =
 ;executable_title = The title of game window. Should be "Street Fighter 6" or a variable of that - Set this if using "game" capture mode.
 executable_title =
 ;refresh_rate = Should be kept to 0.5 seconds. How often the script will check for changes in the game.
@@ -17,7 +15,7 @@ refresh_rate = 0.5
 debug_mode = false
 
 [obs]
-source_title = vod
+source_title =
 host = localhost
 port = 4455
 password =
