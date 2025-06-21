@@ -58,6 +58,7 @@ def print_with_time(*args, **kwargs):
     print(timestamp, "-", *args, **kwargs)
 
 def capture_screen():
+    global obs
     if capture_mode == 'obs':
         if not obs: obs = obsws.ReqClient(
             host=config.get('settings', 'host', fallback='localhost'),
