@@ -57,7 +57,7 @@ def print_with_time(*args, **kwargs):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(timestamp, "-", *args, **kwargs)
 
-def capture_screen():
+def capture_screen(payload):
     global obs
     if capture_mode == 'obs':
         if not obs: obs = obsws.ReqClient(
@@ -90,6 +90,7 @@ def capture_screen():
             else:
                 if capture_attempts < 1: print(f"Executable {executable_title} not found. Ensure it is running and visible.")
                 capture_attempts += 1
+                payload['state'] = None
                 continue
 
         # Get the window's bounding box
@@ -297,7 +298,7 @@ def run_detection_loop(
         start_time = time.time()
         try:
             # Capture the screen ONCE per loop
-            img, scale_x, scale_y = capture_screen()
+            img, scale_x, scale_y = capture_screen(payload)
             functions = state_to_functions.get(payload.get('state'), [])
             for func in functions:
                 if not func: continue
