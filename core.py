@@ -60,11 +60,16 @@ def print_with_time(*args, **kwargs):
 def capture_screen(payload):
     global obs
     if capture_mode == 'obs':
-        if not obs: obs = obsws.ReqClient(
-            host=config.get('settings', 'host', fallback='localhost'),
-            port=config.get('settings', 'port', fallback=4455),
-            password=config.get('settings', 'port', fallback='')
-        )
+        try: 
+            if not obs: obs = obsws.ReqClient(
+                host=config.get('settings', 'host', fallback='localhost'),
+                port=config.get('settings', 'port', fallback=4455),
+                password=config.get('settings', 'port', fallback='')
+            )
+        except Exception as e:
+            print_with_time("Could not connect to OBS. Retrying...")
+            payload['state'] = None
+            return None, 1.0, 1.0
         while True:
             response = obs.get_source_screenshot(
                 name=config.get('obs', 'source_title', fallback=""),
