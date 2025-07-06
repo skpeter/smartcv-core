@@ -62,9 +62,9 @@ def capture_screen(payload):
     if capture_mode == 'obs':
         try: 
             if not obs: obs = obsws.ReqClient(
-                host=config.get('settings', 'host', fallback='localhost'),
-                port=config.get('settings', 'port', fallback=4455),
-                password=config.get('settings', 'password', fallback='')
+                host=config.get('obs', 'host', fallback='localhost'),
+                port=config.get('obs', 'port', fallback=4455),
+                password=config.get('obs', 'password', fallback='')
             )
         except Exception as e:
             print_with_time("Could not connect to OBS. Retrying...")
