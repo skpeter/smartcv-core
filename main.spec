@@ -5,7 +5,7 @@ block_cipher = None
 a = Analysis(
     ['../core/core.py'],
     pathex=['.', '../core', 'core'],
-    binaries=[],
+    binaries=collect_dynamic_libs('torch') + collect_dynamic_libs('cv2'),
     hiddenimports=[
         'numpy._core._exceptions', 'scipy._cyutility',
         'torch, torchvision, torchaudio'
@@ -32,7 +32,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
+    upx_exclude=['torch.dll', 'torch_global_deps.dll', 'python3.dll', '_uuid.pyd'],
     runtime_tmpdir=None,
     disable_windowed_traceback=False,
     argv_emulation=False,
