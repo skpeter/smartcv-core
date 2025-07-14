@@ -27,7 +27,7 @@ a = Analysis(
         'torchvision',
         'torchaudio',
         'easyocr',
-    ]
+    ],
     hookspath=[],
     runtime_hooks=[],
     excludes=[],
