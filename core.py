@@ -303,11 +303,12 @@ def run_detection_loop(
             for func in functions:
                 if not func: continue
                 # Pass the image and scales to each function
-                t = threading.Thread(target=func, args=(payload, img, scale_x, scale_y))
-                t.start()
-                threads.append(t)
-            for t in threads:
-                t.join()
+                func(payload, img, scale_x, scale_y)
+            #     t = threading.Thread(target=func, args=(payload, img, scale_x, scale_y))
+            #     t.start()
+            #     threads.append(t)
+            # for t in threads:
+            #     t.join()
         except Exception as e:
             print(f"Error: {str(e)}")
             print("Stack trace:")
