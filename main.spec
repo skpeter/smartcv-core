@@ -48,6 +48,6 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=[],
+    upx_exclude=['torch.dll', 'torch_global_deps.dll', 'python3.dll', '_uuid.pyd'],
     name='smartcv'
 )

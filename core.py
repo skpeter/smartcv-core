@@ -38,7 +38,8 @@ from io import BytesIO
 config = configparser.ConfigParser()
 config.read('config.ini')
 processing_message = False
-reader = easyocr.Reader(['en'])
+if 'reader' not in globals():
+    reader = easyocr.Reader(['en'])
 refresh_rate = config.getfloat('settings', 'refresh_rate')
 capture_mode = config.get('settings', 'capture_mode')
 executable_title = config.get('settings', 'executable_title', fallback="")
@@ -258,6 +259,7 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
 
     result = reader.readtext(img, paragraph=False, allowlist=allowlist, low_text=low_text)
 
+    if config.getboolean('settings', 'debug_mode', fallback=False): print_with_time("OCR result:", result)
     if result:
         result = [res[1] for res in result]
     else: result = None
