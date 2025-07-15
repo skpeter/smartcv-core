@@ -38,20 +38,13 @@ from io import BytesIO
 config = configparser.ConfigParser()
 config.read('config.ini')
 processing_message = False
-reader = None 
+reader = easyocr.Reader(['en'])
 refresh_rate = config.getfloat('settings', 'refresh_rate')
 capture_mode = config.get('settings', 'capture_mode')
 executable_title = config.get('settings', 'executable_title', fallback="")
 obs = None
 base_height = 1080
 base_width = 1920
-
-def get_reader():
-    global reader
-    if reader is None:
-        reader = easyocr.Reader(['en'], model_storage_directory=os.path.join(os.path.dirname(__file__), 'EasyOCR'))
-    return reader
-
 
 def print_with_time(*args, **kwargs):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -263,7 +256,7 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
     else: img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     if contrast: img = cv2.convertScaleAbs(img, alpha=contrast, beta=-(contrast * 50))
 
-    result = get_reader().readtext(img, paragraph=False, allowlist=allowlist, low_text=low_text)
+    result = reader.readtext(img, paragraph=False, allowlist=allowlist, low_text=low_text)
 
     if result:
         result = [res[1] for res in result]

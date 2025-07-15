@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_submodules, collect_dynamic_libs, collect_data_files
+from PyInstaller.utils.hooks import collect_dynamic_libs
 
 block_cipher = None
 
@@ -7,27 +7,9 @@ a = Analysis(
     ['../core/core.py'],
     pathex=['.', '../core', 'core'],
     binaries=collect_dynamic_libs('torch') + collect_dynamic_libs('cv2'),
-    datas=collect_data_files('easyocr') + collect_data_files('torch') + collect_data_files('cv2'),
-    hiddenimports=collect_submodules('easyocr') + [
-        'numpy._core._exceptions',
-        'scipy._cyutility',
-        'scipy._lib.messagestream',
-        'scipy._lib._ccallback_c',
-        'scipy.linalg.cython_blas',
-        'scipy.linalg.cython_lapack',
-        'scipy.spatial.transform._rotation_groups',
-        'scipy.spatial.transform._rotation',
-        'scipy.special._ufuncs_cxx',
-        'scipy.special._ufuncs',
-        'scipy.special._specfun',
-        'scipy.linalg._fblas',
-        'scipy.linalg._flapack',
-        'scipy.linalg._cythonized_array_utils',
-        'cv2',
-        'torch',
-        'torchvision',
-        'torchaudio',
-        'easyocr',
+    hiddenimports=[
+        'numpy._core._exceptions', 'scipy._cyutility',
+        'torch, torchvision, torchaudio'
     ],
     hookspath=[],
     runtime_hooks=[],
