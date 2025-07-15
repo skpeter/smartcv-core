@@ -393,7 +393,7 @@ if __name__ == "__main__":
     new_ver = is_update_available()
     if new_ver: print(f"New build {new_ver} available (you are on build {__version__}). Head over to \nhttps://github.com/skpeter/{client_name} to download it.")
     broadcast_thread = threading.Thread(target=broadcast.broadcast_device_info, args=(routines.client_name,), daemon=True).start()
-    detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, payload), daemon=True).start()
+    run_detection_loop(routines.states_to_functions, payload)
     websocket_thread = threading.Thread(target=start_websocket_server, args=(payload,), daemon=True).start()
     print("All systems go. Please head to the character or stage selection screen to start detection.\n")
     while True:
