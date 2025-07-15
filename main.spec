@@ -7,7 +7,8 @@ a = Analysis(
     ['../core/core.py'],
     pathex=['.', '../core', 'core'],
     binaries=collect_dynamic_libs('torch') + collect_dynamic_libs('cv2'),
-    hiddenimports=[
+    datas=collect_data_files('easyocr') + collect_data_files('torch') + collect_data_files('cv2'),
+    hiddenimports=collect_submodules('easyocr') + [
         'numpy._core._exceptions',
         'scipy._cyutility',
         'scipy._lib.messagestream',

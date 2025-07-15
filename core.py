@@ -49,7 +49,7 @@ base_width = 1920
 def get_reader():
     global reader
     if reader is None:
-        reader = easyocr.Reader(['en'])  # Lazy initialization
+        reader = easyocr.Reader(['en'], model_storage_directory=os.path.join(os.path.dirname(__file__), 'EasyOCR'))
     return reader
 
 
