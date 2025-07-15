@@ -1,12 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_dynamic_libs
-
 block_cipher = None
 
 a = Analysis(
     ['../core/core.py'],
     pathex=['.', '../core', 'core'],
-    binaries=collect_dynamic_libs('torch') + collect_dynamic_libs('cv2'),
     hiddenimports=[
         'numpy._core._exceptions', 'scipy._cyutility',
         'torch, torchvision, torchaudio'
