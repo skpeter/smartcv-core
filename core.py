@@ -38,8 +38,7 @@ from io import BytesIO
 config = configparser.ConfigParser()
 config.read('config.ini')
 processing_message = False
-if 'reader' not in globals():
-    reader = easyocr.Reader(['en'])
+reader = None
 refresh_rate = config.getfloat('settings', 'refresh_rate')
 capture_mode = config.get('settings', 'capture_mode')
 executable_title = config.get('settings', 'executable_title', fallback="")
@@ -287,13 +286,11 @@ def is_update_available():
     latest = get_latest_build_number()
     return latest if latest is not None and int(__version__) < latest else False
 
-last_mtime = None
 def run_detection_loop(
     state_to_functions: Dict[Optional[str], List[Callable]],
     payload: dict,
 ):
     while True:
-        threads = []
         start_time = time.time()
         try:
             # Capture the screen ONCE per loop
@@ -301,12 +298,7 @@ def run_detection_loop(
             functions = state_to_functions.get(payload.get('state'), [])
             for func in functions:
                 if not func: continue
-                # Pass the image and scales to each function
-                t = threading.Thread(target=func, args=(payload, img, scale_x, scale_y))
-                t.start()
-                threads.append(t)
-            for t in threads:
-                t.join()
+                func(payload, img, scale_x, scale_y)
         except Exception as e:
             print(f"Error: {str(e)}")
             print("Stack trace:")
@@ -388,11 +380,12 @@ def start_websocket_server(payload:dict):
     asyncio.run(start_server(payload))
 
 if __name__ == "__main__":
+    reader = easyocr.Reader(['en'])
     new_ver = is_update_available()
     if new_ver: print(f"New build {new_ver} available (you are on build {__version__}). Head over to \nhttps://github.com/skpeter/{client_name} to download it.")
     broadcast_thread = threading.Thread(target=broadcast.broadcast_device_info, args=(routines.client_name,), daemon=True).start()
-    detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, payload), daemon=True).start()
     websocket_thread = threading.Thread(target=start_websocket_server, args=(payload,), daemon=True).start()
     print("All systems go. Please head to the character or stage selection screen to start detection.\n")
+    run_detection_loop(routines.states_to_functions, payload)
     while True:
         time.sleep(1)
