@@ -259,7 +259,6 @@ def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, c
 
     result = reader.readtext(img, paragraph=False, allowlist=allowlist, low_text=low_text)
 
-    if config.getboolean('settings', 'debug_mode', fallback=False): print_with_time("OCR result:", result)
     if result:
         result = [res[1] for res in result]
     else: result = None
@@ -303,12 +302,11 @@ def run_detection_loop(
             for func in functions:
                 if not func: continue
                 # Pass the image and scales to each function
-                func(payload, img, scale_x, scale_y)
-            #     t = threading.Thread(target=func, args=(payload, img, scale_x, scale_y))
-            #     t.start()
-            #     threads.append(t)
-            # for t in threads:
-            #     t.join()
+                t = threading.Thread(target=func, args=(payload, img, scale_x, scale_y))
+                t.start()
+                threads.append(t)
+            for t in threads:
+                t.join()
         except Exception as e:
             print(f"Error: {str(e)}")
             print("Stack trace:")
@@ -393,7 +391,7 @@ if __name__ == "__main__":
     new_ver = is_update_available()
     if new_ver: print(f"New build {new_ver} available (you are on build {__version__}). Head over to \nhttps://github.com/skpeter/{client_name} to download it.")
     broadcast_thread = threading.Thread(target=broadcast.broadcast_device_info, args=(routines.client_name,), daemon=True).start()
-    run_detection_loop(routines.states_to_functions, payload)
+    detection_thread = threading.Thread(target=run_detection_loop, args=(routines.states_to_functions, payload), daemon=True).start()
     websocket_thread = threading.Thread(target=start_websocket_server, args=(payload,), daemon=True).start()
     print("All systems go. Please head to the character or stage selection screen to start detection.\n")
     while True:
