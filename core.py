@@ -38,7 +38,7 @@ from io import BytesIO
 config = configparser.ConfigParser()
 config.read('config.ini')
 processing_message = False
-reader = None
+reader = easyocr.Reader(['en'])
 refresh_rate = config.getfloat('settings', 'refresh_rate')
 capture_mode = config.get('settings', 'capture_mode')
 executable_title = config.get('settings', 'executable_title', fallback="")
@@ -380,7 +380,6 @@ def start_websocket_server(payload:dict):
     asyncio.run(start_server(payload))
 
 if __name__ == "__main__":
-    reader = easyocr.Reader(['en'])
     new_ver = is_update_available()
     if new_ver: print(f"New build {new_ver} available (you are on build {__version__}). Head over to \nhttps://github.com/skpeter/{client_name} to download it.")
     broadcast_thread = threading.Thread(target=broadcast.broadcast_device_info, args=(routines.client_name,), daemon=True).start()
