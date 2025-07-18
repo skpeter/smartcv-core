@@ -64,18 +64,22 @@ def capture_screen(payload):
             payload['state'] = None
             return None, 1.0, 1.0
         while True:
-            response = obs.get_source_screenshot(
-                name=config.get('obs', 'source_title', fallback=""),
-                img_format="webp",
-                width=config.getint('obs', 'width', fallback=1920),
-                height=config.getint('obs', 'height', fallback=1080),
-                quality=95
-            )
-            prefix = "base64,"
-            idx = response.image_data.find(prefix)
-            img_str = response.image_data[idx + len(prefix):] if idx != -1 else response.image_data
-            img_data = base64.b64decode(img_str)
-            img = Image.open(BytesIO(img_data))
+            try:
+                response = obs.get_source_screenshot(
+                    name=config.get('obs', 'source_title', fallback=""),
+                    img_format="webp",
+                    width=config.getint('obs', 'width', fallback=1920),
+                    height=config.getint('obs', 'height', fallback=1080),
+                    quality=95
+                )
+                prefix = "base64,"
+                idx = response.image_data.find(prefix)
+                img_str = response.image_data[idx + len(prefix):] if idx != -1 else response.image_data
+                img_data = base64.b64decode(img_str)
+                img = Image.open(BytesIO(img_data))
+            except Exception as e:
+                print_with_time(f"Error capturing screen from OBS: {e}")
+                continue
             break
     elif capture_mode == 'game':
         capture_attempts = 0
