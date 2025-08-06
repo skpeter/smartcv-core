@@ -7,7 +7,7 @@ if __name__ == "__main__":
     from routines import client_name
     try:
         from build_info import __version__ # type: ignore
-    except: __version__ = "DEV"
+    except Exception: __version__ = "DEV"
     print(f"Welcome to {client_name.upper()} - build: {__version__}")
     from routines import payload
 import time
@@ -59,7 +59,7 @@ def capture_screen(payload):
                 port=config.get('obs', 'port', fallback=4455),
                 password=config.get('obs', 'password', fallback='')
             )
-        except Exception as e:
+        except Exception:
             print_with_time("Could not connect to OBS. Retrying...")
             payload['state'] = None
             return None, 1.0, 1.0
@@ -251,6 +251,19 @@ def remove_neighbor_duplicates(input_list):
             result.append(item)
     return result
 
+def crop_inner_area(img, region:tuple[int, int]):
+    x, w = region
+    left = img.crop((0, 0, x, img.height))
+    right = img.crop((x + w, 0, img.width, img.height))
+    # Create a new image with the combined width
+    new_width = left.width + right.width
+    new_img = Image.new("RGB", (new_width, img.height))
+
+    # Paste both parts side by side
+    new_img.paste(left, (0, 0))
+    new_img.paste(right, (left.width, 0))
+    return new_img
+
 def read_text(img, region: tuple[int, int, int, int]=None, colored:bool=False, contrast:int=1, allowlist:str=None, low_text=0.4):
     if region:
         x, y, w, h = region
@@ -317,7 +330,7 @@ async def send_data(payload, websocket):
         while True:
             try:
                 data = json.dumps(payload)
-            except Exception as e:
+            except Exception:
                 await asyncio.sleep(refresh_rate)
                 continue
             size = len(data.encode('utf-8'))
@@ -335,7 +348,7 @@ async def receive_data(payload:dict, websocket):
     try:
         async for message in websocket:
             if "confirm-entrants:" in message and processing_message == False and config.get('settings', 'capture_mode') == 'game':
-                print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"),f"- Received request to confirm players:", str(message).replace("confirm-entrants:", "").strip().split(":"))
+                print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "- Received request to confirm players:", str(message).replace("confirm-entrants:", "").strip().split(":"))
                 if str(payload['players'][0]['name']) in str(message) and str(payload['players'][1]['name']) in str(message): return True
                 def doTask():
                     global processing_message
