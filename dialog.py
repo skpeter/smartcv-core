@@ -1,5 +1,6 @@
 import tkinter as tk
-import threading, time
+import threading
+import time
 import pygetwindow as gw
 import tkinter.font as tkFont
 import configparser
@@ -7,24 +8,29 @@ config = configparser.ConfigParser()
 config.read('config.ini')
 pygame = None
 
+
 def on_focus_in(event):
     current_font = tkFont.Font(font=event.widget.cget("font"))
     current_font.configure(weight="bold")
     event.widget.config(font=current_font)
+
 
 def on_focus_out(event):
     current_font = tkFont.Font(font=event.widget.cget("font"))
     current_font.configure(weight="normal")
     event.widget.config(font=current_font)
 
+
 def focus_game_window():
-    windows = gw.getWindowsWithTitle(config.get('settings', 'executable_title'))
-    if windows: # Check if the list is not empty
+    windows = gw.getWindowsWithTitle(
+        config.get('settings', 'executable_title'))
+    if windows:  # Check if the list is not empty
         window = windows[0]
         window.minimize()
         window.restore()
     else:
         pass
+
 
 def unfocus_game(delay=500):
     temp = tk.Tk()
@@ -36,14 +42,17 @@ def unfocus_game(delay=500):
     temp.after(delay, temp.destroy)  # Destroy after a short delay
     temp.mainloop()
 
+
 def choose_player_side(player1: str, player2: str):
     global pygame
     chosen_player = {"name": None}
     current_selection = {"option": None}
 
     unfocus_game()
-    if not pygame: import pygame
-    else: time.sleep(1)
+    if not pygame:
+        import pygame
+    else:
+        time.sleep(1)
     pygame.init()
     pygame.joystick.init()
     root = tk.Tk()
@@ -52,6 +61,7 @@ def choose_player_side(player1: str, player2: str):
     root.attributes("-topmost", True)  # keep the window always active
 
     root.attributes("-alpha", 0.0)
+
     def fade_in(alpha=0.0):
         alpha += 0.05
         if alpha > 1.0:
@@ -86,17 +96,34 @@ def choose_player_side(player1: str, player2: str):
     container.configure(bg="dark gray")
     container.pack(expand=True)
 
-    prompt = tk.Label(container, font=("Helvetica", 24), text="Select which player will be Player 1:\n⬅️ (left side)\nControllers are enabled!    Press X / A / Square to select", bg="dark gray")
+    prompt = tk.Label(
+        container,
+        font=("Helvetica", 24),
+        text="Select which player will be Player 1:\n⬅️ (left side)\nControllers are enabled!    Press X / A / Square to select",
+        bg="dark gray"
+    )
     prompt.pack(pady=10)
-    
+
     def select_player(name):
         chosen_player["name"] = name
         fade_out()
 
-    button1 = tk.Button(container, text=player1, width=50, font=("Helvetica", 32), command=lambda: select_player(player1))
+    button1 = tk.Button(
+        container,
+        text=player1,
+        width=50,
+        font=("Helvetica", 32),
+        command=lambda: select_player(player1)
+    )
     button1.pack(padx=10, pady=5)
 
-    button2 = tk.Button(container, text=player2, width=50, font=("Helvetica", 32), command=lambda: select_player(player2))
+    button2 = tk.Button(
+        container,
+        text=player2,
+        width=50,
+        font=("Helvetica", 32),
+        command=lambda: select_player(player2)
+    )
     button2.pack(padx=10, pady=5)
 
     confirmation_label = tk.Label(
@@ -135,7 +162,9 @@ def choose_player_side(player1: str, player2: str):
         # keyboard
         container.bind_all("<Up>", lambda event: button1.focus_set())
         container.bind_all("<Down>", lambda event: button2.focus_set())
-        container.bind_all("<Return>", lambda event: (button1.invoke() if root.focus_get() == button1 else button2.invoke()))
+        container.bind_all("<Return>", lambda event: (
+            button1.invoke() if root.focus_get() == button1 else button2.invoke()))
+
         def poll_gamepad():
             pygame.joystick.get_count()
             while True:
@@ -143,7 +172,8 @@ def choose_player_side(player1: str, player2: str):
                     for event in pygame.event.get():
                         # allow hot-plug by reinitializing joysticks when a device is added
                         if event.type == pygame.JOYDEVICEADDED:
-                            joystick = pygame.joystick.Joystick(event.device_index)
+                            joystick = pygame.joystick.Joystick(
+                                event.device_index)
                             joystick.init()
                         # left analog stick vertical movement (axis 1) for focus control
                         if event.type == pygame.JOYAXISMOTION:
@@ -162,9 +192,10 @@ def choose_player_side(player1: str, player2: str):
                         # assuming button 0 is the "A"/"X" button to select
                         if event.type == pygame.JOYBUTTONDOWN:
                             if event.button == 0:
-                                root.after(0, lambda: button1.invoke() if root.focus_get() == button1 else button2.invoke())
+                                root.after(0, lambda: button1.invoke(
+                                ) if root.focus_get() == button1 else button2.invoke())
                     time.sleep(0.01)
-                except Exception as e:
+                except Exception:
                     pass
         threading.Thread(target=poll_gamepad, daemon=True).start()
     root.after(100, enable_controls)
@@ -172,5 +203,6 @@ def choose_player_side(player1: str, player2: str):
     root.mainloop()
     return chosen_player["name"]
 
-if __name__ == "__main__": # for testing only
+
+if __name__ == "__main__":  # for testing only
     choose_player_side("Player 1", "Player 2")

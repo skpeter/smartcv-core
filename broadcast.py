@@ -5,7 +5,8 @@ import time
 BROADCAST_PORT = 6500
 BROADCAST_INTERVAL = 1  # seconds
 
-def broadcast_device_info(client_name:str):
+
+def broadcast_device_info(client_name: str):
     hostname = socket.gethostname()
     ip = socket.gethostbyname(hostname)
     message = f"{client_name}:{hostname}:{ip}".encode("utf-8")
@@ -23,11 +24,13 @@ def broadcast_device_info(client_name:str):
     finally:
         sock.close()
 
+
 def broadcaster_thread():
     try:
         asyncio.run(broadcast_device_info())
     except Exception as e:
         print(f"Broadcast thread error: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(broadcast_device_info())
