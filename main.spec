@@ -30,7 +30,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=['torch.dll', 'torch_global_deps.dll', 'python3.dll', '_uuid.pyd'],
+    upx_exclude=['torch.dll', 'torch_global_deps.dll', 'python3.dll', '_uuid.pyd', 'c10.dll'],
     runtime_tmpdir=None,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -48,6 +48,6 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=['torch.dll', 'torch_global_deps.dll', 'python3.dll', '_uuid.pyd'],
+    upx_exclude=['torch.dll', 'torch_global_deps.dll', 'python3.dll', '_uuid.pyd', 'c10.dll'],
     name='smartcv'
 )
