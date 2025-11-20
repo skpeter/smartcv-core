@@ -14,8 +14,8 @@ import easyocr
 import threading
 import numpy as np
 import cv2
-from core import broadcast
-from core import dialog
+from . import broadcast
+from . import dialog
 import routines
 from typing import Callable, Dict, List, Optional
 from PIL import Image, ImageFile
