@@ -48,8 +48,10 @@ base_height = 1080
 base_width = 1920
 
 
-def print_with_time(*args, **kwargs):
+def print_with_time(*args, debug_only=False, **kwargs):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if debug_only and not config.getboolean('settings', 'debug_mode', fallback=False):
+        return
     print(timestamp, "-", *args, **kwargs)
 
 
@@ -306,7 +308,7 @@ def read_text(img, region: tuple[int, int, int, int] = None, colored: bool = Fal
         result = None
     if config.getboolean('settings', 'debug_mode', fallback=False):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"dev/{'_'.join(result) if isinstance(result, list) else ''}_{timestamp}.png"
+        filename = f"dev/{timestamp}_{'_'.join(result) if isinstance(result, list) else ''}_{np.random.randint(10, 100):02d}.png"
         cv2.imwrite(filename, img)
     del img
     gc.collect()
