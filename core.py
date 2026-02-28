@@ -1,5 +1,12 @@
 from io import BytesIO
 import base64
+import os
+import sys
+
+_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if _parent_dir not in sys.path:
+    sys.path.insert(0, _parent_dir)
+
 import obsws_python as obsws
 from datetime import datetime
 import requests
@@ -14,17 +21,19 @@ import easyocr
 import threading
 import numpy as np
 import cv2
-from . import broadcast
-from . import dialog
+try:
+    from . import broadcast
+    from . import dialog
+except ImportError:
+    import broadcast
+    import dialog
 import routines
 from typing import Callable, Dict, List, Optional
 from PIL import Image, ImageFile
 import configparser
 import time
-import sys
-import os
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, parent_dir)
+
+
 if __name__ == "__main__":
     print("Initializing...")
     from routines import client_name
