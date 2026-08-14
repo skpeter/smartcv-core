@@ -18,10 +18,7 @@ jobs:
           - SmartCV-RoA2
           - SmartCV-SF6
     steps:
-      - name: Dispatch core-updated
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.CONSUMER_PAT }}
-          repository: skpeter/${{ matrix.repo }}
-          event-type: core-updated
-          client-payload: '{"sha": "${{ github.sha }}", "ref": "${{ github.ref }}"}'
+      - name: Trigger bump-core workflow
+        env:
+          GH_TOKEN: ${{ secrets.CONSUMER_PAT }}
+        run: gh workflow run "Bump core submodule" --repo "skpeter/${{ matrix.repo }}" --ref main
