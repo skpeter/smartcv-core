@@ -1,0 +1,27 @@
+name: Notify game repos
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repo:
+          - SmartCV
+          - SmartCV-GGST
+          - SmartCV-RoA2
+          - SmartCV-SF6
+    steps:
+      - name: Dispatch core-updated
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.CONSUMER_PAT }}
+          repository: skpeter/${{ matrix.repo }}
+          event-type: core-updated
+          client-payload: '{"sha": "${{ github.sha }}", "ref": "${{ github.ref }}"}'
