@@ -4,7 +4,7 @@ import sys
 import sysconfig
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 block_cipher = None
 
@@ -40,16 +40,26 @@ def _stdlib_hiddenimports():
     return names
 
 
+# Torchvision is also runtime-loaded (excluded). Its `from PIL import ImageDraw`
+# never reaches the freeze graph. core.py only pulls Image/ImageFile, so the
+# bundle had PIL C-exts + those two modules and died on ImageDraw.
+pil_datas, pil_binaries, pil_hiddenimports = collect_all('PIL')
+
+
 a = Analysis(
     ['../core/core.py'],
     pathex=['.', '../core', 'core'],
+    binaries=pil_binaries,
+    datas=pil_datas,
     hiddenimports=[
         'numpy._core._exceptions', 'scipy._cyutility',
         'packaging', 'packaging.utils', 'packaging.requirements',
         'packaging.markers', 'packaging.version',
         'gpu_detect', 'torch_bootstrap',
         'timeit',
-    ] + _stdlib_hiddenimports(),
+        'PIL.ImageDraw', 'PIL.ImageFont', 'PIL.ImageColor',
+        'PIL.ImageEnhance', 'PIL.ImageOps', 'PIL.ImageFilter',
+    ] + pil_hiddenimports + _stdlib_hiddenimports(),
 
     hookspath=[os.path.join(SPECPATH, 'hooks')],
     runtime_hooks=[],
