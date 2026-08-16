@@ -21,6 +21,8 @@ except ImportError:
 TORCH_VERSION = "2.13.0"
 TORCHVISION_VERSION = "0.28.0"
 MARKER_NAME = "smartcv-torch.json"
+# Bump when install policy changes so _sync can repair deps (not full torch).
+BOOTSTRAP_REV = 2
 LOCK_NAME = ".setup.lock"
 STALE_LOCK_SEC = 2 * 60 * 60
 
@@ -126,6 +128,7 @@ def _write_marker(pkg_dir: Path, variant: str, py_tag: str) -> None:
         "torch": TORCH_VERSION,
         "py": py_tag,
         "platform": sys.platform,
+        "rev": BOOTSTRAP_REV,
     }
     (pkg_dir / MARKER_NAME).write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -176,6 +179,8 @@ def _install_if_needed(
     pkg_dir: Path, variant: str, py_tag: str, gpu: GpuInfo,
 ) -> None:
     if _marker_ok(pkg_dir, variant, py_tag) and (pkg_dir / "torch").is_dir():
+        _install_wheels(pkg_dir, variant, repair=True)
+        _write_marker(pkg_dir, variant, py_tag)
         return
     print("SmartCV first-time setup: installing PyTorch (once, ~0.2–3 GB).")
     print(f"GPU: {gpu.reason}")
@@ -268,10 +273,17 @@ def _list_files(index_url: str, project: str) -> list[dict]:
     return files
 
 
-def _pick_from_index(index_url: str, project: str, version: str | None) -> tuple[str, str]:
+def _pick_from_index(
+    index_url: str,
+    project: str,
+    version: str | None,
+    specifier: str | None = None,
+) -> tuple[str, str]:
+    from packaging.specifiers import SpecifierSet
     from packaging.utils import parse_wheel_filename
     impl, plat = _wheel_tags()
     files = _list_files(index_url, project)
+    specset = SpecifierSet(specifier) if specifier else None
     idx = index_url.lower()
     require = None
     if "/cu" in idx:
@@ -296,27 +308,36 @@ def _pick_from_index(index_url: str, project: str, version: str | None) -> tuple
             )
         except Exception:
             continue
+        if ver.is_prerelease:
+            continue
         if version and ver.base_version != version:
+            continue
+        if specset is not None and ver not in specset:
             continue
         if best_ver is None or ver > best_ver:
             best_ver = ver
             best = f
     if best is None:
         raise FileNotFoundError(
-            f"No wheel for {project} {version or ''} ({impl}, {plat}) at {index_url}"
+            f"No wheel for {project} {version or specifier or ''} ({impl}, {plat}) at {index_url}"
         )
     return best["url"], best["filename"]
 
 
-def _pick_wheel(index_url: str, project: str, version: str | None) -> tuple[str, str]:
+def _pick_wheel(
+    index_url: str,
+    project: str,
+    version: str | None,
+    specifier: str | None = None,
+) -> tuple[str, str]:
     try:
-        return _pick_from_index(index_url, project, version)
+        return _pick_from_index(index_url, project, version, specifier)
     except (FileNotFoundError, requests.HTTPError):
         # Never substitute PyPI torch — that is CPU (or a different CUDA).
         if _pep503_name(project) in ("torch", "torchvision", "torchaudio"):
             raise
         if index_url.rstrip("/") != PYPI_SIMPLE:
-            return _pick_from_index(PYPI_SIMPLE, project, version)
+            return _pick_from_index(PYPI_SIMPLE, project, version, specifier)
         raise
 
 
@@ -362,9 +383,9 @@ def _extract_wheel(whl: Path, target: Path) -> str:
     return metadata
 
 
-def _requires(metadata: str) -> list[str]:
+def _requires(metadata: str) -> list[tuple[str, str | None]]:
     from packaging.requirements import Requirement
-    names = []
+    out: list[tuple[str, str | None]] = []
     for line in metadata.splitlines():
         if not line.startswith("Requires-Dist:"):
             continue
@@ -378,30 +399,114 @@ def _requires(metadata: str) -> list[str]:
         name = req.name.lower().replace("_", "-")
         if name in SKIP_DEPS:
             continue
-        names.append(req.name)
-    return names
+        spec = str(req.specifier) if req.specifier else None
+        out.append((req.name, spec))
+    return out
 
 
-def _install_wheels(target: Path, variant: str) -> None:
+def _dists(pkg_dir: Path) -> dict[str, tuple[Path, str]]:
+    """canonical name -> (dist-info dir, version string)."""
+    found: dict[str, tuple[Path, str]] = {}
+    for meta in pkg_dir.glob("*.dist-info/METADATA"):
+        name = version = ""
+        try:
+            text = meta.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            if line.startswith("Name:"):
+                name = line.split(":", 1)[1].strip()
+            elif line.startswith("Version:"):
+                version = line.split(":", 1)[1].strip()
+            if name and version:
+                break
+        if name and version:
+            found[_pep503_name(name)] = (meta.parent, version)
+    return found
+
+
+def _project_ok(
+    pkg_dir: Path,
+    project: str,
+    version: str | None,
+    specifier: str | None,
+) -> tuple[bool, str]:
+    """Return (ok, metadata_text). ok means installed version satisfies pin/spec."""
+    from packaging.specifiers import SpecifierSet
+    from packaging.version import Version
+    dists = _dists(pkg_dir)
+    hit = dists.get(_pep503_name(project))
+    if not hit:
+        return False, ""
+    dist_info, ver_s = hit
+    meta_path = dist_info / "METADATA"
+    try:
+        meta = meta_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False, ""
+    try:
+        ver = Version(ver_s)
+    except Exception:
+        return False, meta
+    if ver.is_prerelease:
+        return False, meta
+    if version and ver.base_version != version:
+        return False, meta
+    if specifier:
+        try:
+            if ver not in SpecifierSet(specifier):
+                return False, meta
+        except Exception:
+            return False, meta
+    return True, meta
+
+
+def _wipe_project(pkg_dir: Path, project: str) -> None:
+    key = _pep503_name(project)
+    dists = _dists(pkg_dir)
+    hit = dists.get(key)
+    if hit:
+        shutil.rmtree(hit[0], ignore_errors=True)
+    for child in list(pkg_dir.iterdir()):
+        if not child.is_dir():
+            continue
+        if _pep503_name(child.name) == key:
+            shutil.rmtree(child, ignore_errors=True)
+
+
+def _install_wheels(target: Path, variant: str, repair: bool = False) -> None:
     index = _index_for(variant)
     downloads = target / "_wheels"
-    downloads.mkdir()
+    downloads.mkdir(exist_ok=True)
     seen = {n.lower().replace("_", "-") for n in SKIP_DEPS}
-    queue = [("torch", TORCH_VERSION), ("torchvision", TORCHVISION_VERSION)]
+    queue: list[tuple[str, str | None, str | None]] = [
+        ("torch", TORCH_VERSION, None),
+        ("torchvision", TORCHVISION_VERSION, None),
+    ]
     while queue:
-        project, version = queue.pop(0)
+        project, version, specifier = queue.pop(0)
         key = project.lower().replace("_", "-")
         if key in seen:
             continue
         seen.add(key)
-        url, fname = _pick_wheel(index, project, version)
+        ok, meta = _project_ok(target, project, version, specifier)
+        if ok:
+            for dep, spec in _requires(meta):
+                dkey = dep.lower().replace("_", "-")
+                if dkey not in seen:
+                    queue.append((dep, None, spec))
+            continue
+        if repair:
+            print(f"Repairing {project} ({specifier or version or 'latest'})")
+        url, fname = _pick_wheel(index, project, version, specifier)
         whl = downloads / unquote(fname.split("?")[0].split("/")[-1])
+        _wipe_project(target, project)
         _download(url, whl)
         meta = _extract_wheel(whl, target)
-        for dep in _requires(meta):
+        for dep, spec in _requires(meta):
             dkey = dep.lower().replace("_", "-")
             if dkey not in seen:
-                queue.append((dep, None))
+                queue.append((dep, None, spec))
     shutil.rmtree(downloads, ignore_errors=True)
 
 
@@ -429,6 +534,8 @@ def _activate(pkg_dir: Path) -> None:
 
 def _verify(variant: str) -> None:
     import torch
+    import torchvision  # noqa: F401
+    import sympy  # noqa: F401
     cuda = bool(getattr(torch, "cuda", None) and torch.cuda.is_available())
     print(f"PyTorch {torch.__version__}  CUDA available: {cuda}")
     if variant.startswith("cu") and not cuda:

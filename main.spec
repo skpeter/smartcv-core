@@ -45,6 +45,14 @@ def _stdlib_hiddenimports():
 # bundle had PIL C-exts + those two modules and died on ImageDraw.
 pil_datas, pil_binaries, pil_hiddenimports = collect_all('PIL')
 
+_scan_file = Path(SPECPATH) / 'torch_hiddenimports.txt'
+_scan_imports = []
+if _scan_file.exists():
+    _scan_imports = [
+        ln.strip() for ln in _scan_file.read_text(encoding='utf-8').splitlines()
+        if ln.strip() and not ln.startswith('#')
+    ]
+
 
 a = Analysis(
     ['../core/core.py'],
@@ -59,7 +67,7 @@ a = Analysis(
         'timeit',
         'PIL.ImageDraw', 'PIL.ImageFont', 'PIL.ImageColor',
         'PIL.ImageEnhance', 'PIL.ImageOps', 'PIL.ImageFilter',
-    ] + pil_hiddenimports + _stdlib_hiddenimports(),
+    ] + pil_hiddenimports + _stdlib_hiddenimports() + _scan_imports,
 
     hookspath=[os.path.join(SPECPATH, 'hooks')],
     runtime_hooks=[],
