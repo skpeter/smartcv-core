@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 block_cipher = None
 
 a = Analysis(
@@ -6,11 +7,13 @@ a = Analysis(
     pathex=['.', '../core', 'core'],
     hiddenimports=[
         'numpy._core._exceptions', 'scipy._cyutility',
-        'torch, torchvision, torchaudio'
+        'packaging', 'packaging.utils', 'packaging.requirements',
+        'packaging.markers', 'packaging.version',
+        'gpu_detect', 'torch_bootstrap',
     ],
-    hookspath=[],
+    hookspath=[os.path.join(SPECPATH, 'hooks')],
     runtime_hooks=[],
-    excludes=[],
+    excludes=['torch', 'torchvision', 'torchaudio', 'nvidia'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

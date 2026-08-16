@@ -8,3 +8,4 @@ easyocr
 pygame
 requests
 obsws-python
+packaging

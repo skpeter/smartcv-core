@@ -7,6 +7,12 @@ _parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if _parent_dir not in sys.path:
     sys.path.insert(0, _parent_dir)
 
+try:
+    from .torch_bootstrap import ensure_torch
+except ImportError:
+    from torch_bootstrap import ensure_torch
+ensure_torch()
+
 import obsws_python as obsws
 from datetime import datetime
 import requests
