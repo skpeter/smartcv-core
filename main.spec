@@ -1,6 +1,44 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
+import sys
+import sysconfig
+from pathlib import Path
+
+from PyInstaller.utils.hooks import collect_submodules
+
 block_cipher = None
+
+# Torch is excluded from the freeze and loaded at runtime from AppData.
+# PyInstaller therefore never sees torch's import graph and omits unused
+# stdlib modules (first crash: timeit via torch._strobelight). Pack stdlib
+# so runtime torch/easyocr imports do not die on ModuleNotFoundError.
+_STDLIB_SKIP = {
+    'site-packages', 'ensurepip', 'venv', 'turtledemo', 'idlelib',
+    'test', 'tkinter', 'pydoc_data', 'distutils', '__pycache__',
+    'lib2to3', 'config',
+}
+
+
+def _stdlib_hiddenimports():
+    stdlib = Path(sysconfig.get_path('stdlib'))
+    builtin = set(sys.builtin_module_names)
+    names = []
+    for p in sorted(stdlib.glob('*.py')):
+        if p.stem in builtin or p.stem.startswith('__'):
+            continue
+        names.append(p.stem)
+    for p in sorted(stdlib.iterdir()):
+        if not p.is_dir() or p.name in _STDLIB_SKIP or p.name.startswith('.'):
+            continue
+        if p.name in builtin:
+            continue
+        names.append(p.name)
+        try:
+            names.extend(collect_submodules(p.name))
+        except Exception:
+            pass
+    return names
+
 
 a = Analysis(
     ['../core/core.py'],
@@ -10,7 +48,9 @@ a = Analysis(
         'packaging', 'packaging.utils', 'packaging.requirements',
         'packaging.markers', 'packaging.version',
         'gpu_detect', 'torch_bootstrap',
-    ],
+        'timeit',
+    ] + _stdlib_hiddenimports(),
+
     hookspath=[os.path.join(SPECPATH, 'hooks')],
     runtime_hooks=[],
     excludes=['torch', 'torchvision', 'torchaudio', 'nvidia'],
