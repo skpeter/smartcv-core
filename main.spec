@@ -63,7 +63,7 @@ a = Analysis(
         'numpy._core._exceptions', 'scipy._cyutility',
         'packaging', 'packaging.utils', 'packaging.requirements',
         'packaging.markers', 'packaging.version',
-        'gpu_detect', 'torch_bootstrap',
+        'gpu_detect', 'torch_bootstrap', 'update',
         'timeit',
         'PIL.ImageDraw', 'PIL.ImageFont', 'PIL.ImageColor',
         'PIL.ImageEnhance', 'PIL.ImageOps', 'PIL.ImageFilter',

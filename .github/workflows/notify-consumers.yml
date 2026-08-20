@@ -17,6 +17,8 @@ jobs:
           - SmartCV-GGST
           - SmartCV-RoA2
           - SmartCV-SF6
+          - SmartCV-Avatar
+          - SmartCV-Tokon
     steps:
       - name: Trigger bump-core workflow
         env:

@@ -7,6 +7,13 @@ _parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if _parent_dir not in sys.path:
     sys.path.insert(0, _parent_dir)
 
+if __name__ == "__main__":
+    try:
+        from .update import maybe_update
+    except ImportError:
+        from update import maybe_update
+    maybe_update()
+
 try:
     from .torch_bootstrap import ensure_torch
 except ImportError:
@@ -331,24 +338,6 @@ def read_text(img, region: tuple[int, int, int, int] = None, colored: bool = Fal
     return result
 
 
-def get_latest_build_number():
-    url = f'https://api.github.com/repos/skpeter/{client_name}/releases/latest'
-    try:
-        r = requests.get(url, timeout=5)
-        r.raise_for_status()
-        tag = r.json()['tag_name']
-        if 'release-main-' in tag:
-            return int(tag.rsplit('-', 1)[-1])
-    except Exception as e:
-        print(f"Update check failed: {e}")
-    return None
-
-
-def is_update_available():
-    latest = get_latest_build_number()
-    return latest if latest is not None and int(__version__) < latest else False
-
-
 def run_detection_loop(
     state_to_functions: Dict[Optional[str], List[Callable]],
     payload: dict,
@@ -454,9 +443,6 @@ def start_websocket_server(payload: dict):
 
 
 if __name__ == "__main__":
-    new_ver = is_update_available()
-    if new_ver:
-        print(f"New build {new_ver} available (you are on build {__version__}). Head over to \nhttps://github.com/skpeter/{client_name} to download it.")
     broadcast_thread = threading.Thread(target=broadcast.broadcast_device_info, args=(
         routines.client_name,), daemon=True).start()
     websocket_thread = threading.Thread(
