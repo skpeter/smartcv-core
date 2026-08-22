@@ -14,12 +14,6 @@ if __name__ == "__main__":
         from update import maybe_update
     maybe_update()
 
-try:
-    from .torch_bootstrap import ensure_torch
-except ImportError:
-    from torch_bootstrap import ensure_torch
-ensure_torch()
-
 import obsws_python as obsws
 from datetime import datetime
 import requests
@@ -30,7 +24,7 @@ import asyncio
 import websockets
 import json
 import gc
-import easyocr
+from paddleocr import PaddleOCR
 import threading
 import numpy as np
 import cv2
@@ -61,7 +55,14 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 config = configparser.ConfigParser()
 config.read('config.ini')
 processing_message = False
-reader = easyocr.Reader(['en'])
+reader = PaddleOCR(
+    ocr_version="PP-OCRv6",
+    text_detection_model_name="PP-OCRv6_small_det",
+    text_recognition_model_name="PP-OCRv6_small_rec",
+    use_doc_orientation_classify=False,
+    use_doc_unwarping=False,
+    use_textline_orientation=False,
+)
 ocr_stats = {"calls": 0, "ms_total": 0.0, "ms_samples": []}
 _OCR_SAMPLE_CAP = 20000
 refresh_rate = config.getfloat('settings', 'refresh_rate')
@@ -84,6 +85,29 @@ def _note_ocr(ms: float) -> None:
     samples = ocr_stats["ms_samples"]
     if len(samples) < _OCR_SAMPLE_CAP:
         samples.append(ms)
+
+
+def _paddle_texts(raw, allowlist: str = None, low_text: float = 0.4):
+    texts = []
+    if not raw:
+        return None
+    for res in raw:
+        data = res.json if hasattr(res, "json") else res
+        if not isinstance(data, dict):
+            continue
+        rec_texts = data.get("rec_texts") or []
+        rec_scores = list(data.get("rec_scores") or [])
+        for i, text in enumerate(rec_texts):
+            if not text:
+                continue
+            score = float(rec_scores[i]) if i < len(rec_scores) else 1.0
+            if score < low_text:
+                continue
+            if allowlist:
+                text = "".join(c for c in text if c in allowlist)
+            if text:
+                texts.append(text)
+    return texts or None
 
 
 def print_with_time(*args, debug_only=False, **kwargs):
@@ -336,16 +360,13 @@ def read_text(img, region: tuple[int, int, int, int] = None, colored: bool = Fal
         img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     if contrast:
         img = cv2.convertScaleAbs(img, alpha=contrast, beta=-(contrast * 50))
+    if len(img.shape) == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
     t0 = time.perf_counter()
-    result = reader.readtext(img, paragraph=False,
-                             allowlist=allowlist, low_text=low_text)
+    raw = reader.predict(img)
     _note_ocr((time.perf_counter() - t0) * 1000.0)
-
-    if result:
-        result = [res[1] for res in result]
-    else:
-        result = None
+    result = _paddle_texts(raw, allowlist=allowlist, low_text=low_text)
     if config.getboolean('settings', 'debug_mode', fallback=False):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"dev/{timestamp}_{'_'.join(result) if isinstance(result, list) else ''}_{np.random.randint(10, 100):02d}.png"
