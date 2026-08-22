@@ -9,3 +9,4 @@ pygame
 requests
 obsws-python
 packaging
+psutil

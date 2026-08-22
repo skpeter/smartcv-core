@@ -62,12 +62,28 @@ config = configparser.ConfigParser()
 config.read('config.ini')
 processing_message = False
 reader = easyocr.Reader(['en'])
+ocr_stats = {"calls": 0, "ms_total": 0.0, "ms_samples": []}
+_OCR_SAMPLE_CAP = 20000
 refresh_rate = config.getfloat('settings', 'refresh_rate')
 capture_mode = config.get('settings', 'capture_mode')
 executable_title = config.get('settings', 'executable_title', fallback="")
 obs = None
 base_height = 1080
 base_width = 1920
+
+
+def reset_ocr_stats() -> None:
+    ocr_stats["calls"] = 0
+    ocr_stats["ms_total"] = 0.0
+    ocr_stats["ms_samples"] = []
+
+
+def _note_ocr(ms: float) -> None:
+    ocr_stats["calls"] += 1
+    ocr_stats["ms_total"] += ms
+    samples = ocr_stats["ms_samples"]
+    if len(samples) < _OCR_SAMPLE_CAP:
+        samples.append(ms)
 
 
 def print_with_time(*args, debug_only=False, **kwargs):
@@ -321,8 +337,10 @@ def read_text(img, region: tuple[int, int, int, int] = None, colored: bool = Fal
     if contrast:
         img = cv2.convertScaleAbs(img, alpha=contrast, beta=-(contrast * 50))
 
+    t0 = time.perf_counter()
     result = reader.readtext(img, paragraph=False,
                              allowlist=allowlist, low_text=low_text)
+    _note_ocr((time.perf_counter() - t0) * 1000.0)
 
     if result:
         result = [res[1] for res in result]
