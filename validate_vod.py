@@ -55,11 +55,8 @@ def fmt(payload: dict) -> str:
     players = payload.get("players") or []
     if players:
         rounds = "-".join(str(p.get("rounds", "-")) for p in players)
-        games = "-".join(str(p.get("games", "-")) for p in players)
         chars = " vs ".join(str(p.get("character") or "-") for p in players)
         bits.append(f"rounds={rounds}")
-        if any("games" in p for p in players):
-            bits.append(f"games={games}")
         bits.append(chars)
     return " ".join(bits)
 
