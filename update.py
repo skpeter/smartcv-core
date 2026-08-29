@@ -1,15 +1,16 @@
 """Self-update from GitHub latest release.zip / source.zip.
 
-Stdlib only. Runs before torch bootstrap. Git clones and DEV builds skip.
+Stdlib-first. Optional certifi when present (frozen OpenSSL often has no CA).
+Runs before torch bootstrap. Git clones and DEV builds skip.
 """
 from __future__ import annotations
 
 import os
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
-import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -20,8 +21,25 @@ _CHUNK = 256 * 1024
 _UA = "SmartCV-updater"
 
 
+def ensure_ca_bundle() -> None:
+    """Point OpenSSL/requests at certifi CA when system/frozen store is empty."""
+    if os.environ.get("SSL_CERT_FILE") and os.environ.get("REQUESTS_CA_BUNDLE"):
+        return
+    try:
+        import certifi
+
+        ca = certifi.where()
+    except Exception:
+        return
+    if not ca or not os.path.isfile(ca):
+        return
+    os.environ.setdefault("SSL_CERT_FILE", ca)
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", ca)
+
+
 def maybe_update() -> None:
     try:
+        ensure_ca_bundle()
         _maybe_update()
     except Exception as e:
         print(f"Update failed: {e}")
@@ -104,9 +122,17 @@ def _asset_url(repo: str, name: str) -> str:
     return f"https://github.com/{_GITHUB_OWNER}/{repo}/releases/latest/download/{name}"
 
 
+def _ssl_context() -> ssl.SSLContext:
+    ensure_ca_bundle()
+    ca = os.environ.get("SSL_CERT_FILE")
+    if ca and os.path.isfile(ca):
+        return ssl.create_default_context(cafile=ca)
+    return ssl.create_default_context()
+
+
 def _urlopen(url: str, timeout: int = 60):
     req = urllib.request.Request(url, headers={"User-Agent": _UA})
-    return urllib.request.urlopen(req, timeout=timeout)
+    return urllib.request.urlopen(req, timeout=timeout, context=_ssl_context())
 
 
 def _fetch_remote_version(repo: str):
@@ -115,8 +141,9 @@ def _fetch_remote_version(repo: str):
         with _urlopen(url, timeout=10) as resp:
             text = resp.read().decode("utf-8", errors="replace").strip()
         return int(text)
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError) as e:
-        print(f"Update check failed: {e}")
+    except Exception as e:
+        # Broken CA / offline must never abort startup.
+        print(f"Update check skipped: {e}")
         return None
 
 

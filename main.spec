@@ -44,6 +44,8 @@ def _stdlib_hiddenimports():
 # never reaches the freeze graph. core.py only pulls Image/ImageFile, so the
 # bundle had PIL C-exts + those two modules and died on ImageDraw.
 pil_datas, pil_binaries, pil_hiddenimports = collect_all('PIL')
+# Frozen OpenSSL has no system CA path; updater/torch download need cacert.pem.
+certifi_datas, certifi_binaries, certifi_hiddenimports = collect_all('certifi')
 
 _scan_file = Path(SPECPATH) / 'torch_hiddenimports.txt'
 _scan_imports = []
@@ -57,17 +59,18 @@ if _scan_file.exists():
 a = Analysis(
     ['../core/core.py'],
     pathex=['.', '../core', 'core'],
-    binaries=pil_binaries,
-    datas=pil_datas,
+    binaries=pil_binaries + certifi_binaries,
+    datas=pil_datas + certifi_datas,
     hiddenimports=[
         'numpy._core._exceptions', 'scipy._cyutility',
         'packaging', 'packaging.utils', 'packaging.requirements',
         'packaging.markers', 'packaging.version',
         'gpu_detect', 'torch_bootstrap', 'update',
+        'certifi',
         'timeit',
         'PIL.ImageDraw', 'PIL.ImageFont', 'PIL.ImageColor',
         'PIL.ImageEnhance', 'PIL.ImageOps', 'PIL.ImageFilter',
-    ] + pil_hiddenimports + _stdlib_hiddenimports() + _scan_imports,
+    ] + pil_hiddenimports + certifi_hiddenimports + _stdlib_hiddenimports() + _scan_imports,
 
     hookspath=[os.path.join(SPECPATH, 'hooks')],
     runtime_hooks=[],

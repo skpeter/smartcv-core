@@ -9,10 +9,21 @@ if _parent_dir not in sys.path:
 
 if __name__ == "__main__":
     try:
-        from .update import maybe_update
+        from .update import ensure_ca_bundle, maybe_update
     except ImportError:
-        from update import maybe_update
+        from update import ensure_ca_bundle, maybe_update
+    ensure_ca_bundle()
     maybe_update()
+else:
+    try:
+        from .update import ensure_ca_bundle
+    except ImportError:
+        try:
+            from update import ensure_ca_bundle
+        except ImportError:
+            ensure_ca_bundle = None
+    if ensure_ca_bundle is not None:
+        ensure_ca_bundle()
 
 try:
     from .torch_bootstrap import ensure_torch

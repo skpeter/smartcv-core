@@ -36,6 +36,16 @@ PYPI_SIMPLE = "https://pypi.org/simple"
 
 
 def ensure_torch() -> None:
+    try:
+        from .update import ensure_ca_bundle
+    except ImportError:
+        try:
+            from update import ensure_ca_bundle
+        except ImportError:
+            ensure_ca_bundle = None
+    if ensure_ca_bundle is not None:
+        ensure_ca_bundle()
+
     gpu = detect_gpu()
     variant = pick_variant(gpu)
     pkg_dir = _pkg_dir()
