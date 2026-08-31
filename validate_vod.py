@@ -71,11 +71,14 @@ def run(path: str, start: float, end: float | None, step: float, ocr: bool) -> N
     if not cap.isOpened():
         raise SystemExit(f"cannot open {path}")
     if end is None:
-        duration_ms = cap.get(cv2.CAP_PROP_DURATION)
-        if duration_ms <= 0:
+        # CAP_PROP_DURATION missing/broken on some OpenCV builds; use frames/fps.
+        frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
+        if frames > 0 and fps > 0:
+            end = frames / fps
+        else:
             cap.release()
             raise SystemExit("could not read duration; pass --end")
-        end = duration_ms / 1000.0
 
     base_w = getattr(core, "base_width", 1920)
     base_h = getattr(core, "base_height", 1080)
