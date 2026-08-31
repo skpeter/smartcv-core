@@ -9,10 +9,27 @@ if _parent_dir not in sys.path:
 
 if __name__ == "__main__":
     try:
-        from .update import maybe_update
+        from .update import ensure_ca_bundle, maybe_update
     except ImportError:
-        from update import maybe_update
+        from update import ensure_ca_bundle, maybe_update
+    ensure_ca_bundle()
     maybe_update()
+else:
+    try:
+        from .update import ensure_ca_bundle
+    except ImportError:
+        try:
+            from update import ensure_ca_bundle
+        except ImportError:
+            ensure_ca_bundle = None
+    if ensure_ca_bundle is not None:
+        ensure_ca_bundle()
+
+try:
+    from .paddle_bootstrap import ensure_paddle
+except ImportError:
+    from paddle_bootstrap import ensure_paddle
+ensure_paddle()
 
 import obsws_python as obsws
 from datetime import datetime
@@ -87,14 +104,24 @@ def _note_ocr(ms: float) -> None:
         samples.append(ms)
 
 
+def _paddle_result_dict(res):
+    """PaddleOCR 3.x OCRResult is a dict with rec_texts. .json wraps that in {'res': ...}."""
+    if isinstance(res, dict) and "rec_texts" in res:
+        return res
+    data = getattr(res, "json", res)
+    if callable(data):
+        data = data()
+    if isinstance(data, dict) and isinstance(data.get("res"), dict):
+        data = data["res"]
+    return data if isinstance(data, dict) else {}
+
+
 def _paddle_texts(raw, allowlist: str = None, low_text: float = 0.4):
     texts = []
     if not raw:
         return None
     for res in raw:
-        data = res.json if hasattr(res, "json") else res
-        if not isinstance(data, dict):
-            continue
+        data = _paddle_result_dict(res)
         rec_texts = data.get("rec_texts") or []
         rec_scores = list(data.get("rec_scores") or [])
         for i, text in enumerate(rec_texts):
@@ -236,36 +263,21 @@ def merge_runs_with_margin(runs, margin, width):
     return merged
 
 
-def stitch_text_regions(image_array, y_line, color, margin=10, deviation=0.1):
+def extract_text_strips(image_array, y_line, color, margin=10, deviation=0.1):
+    """Return left-to-right crops of color runs on y_line (no stitch)."""
     if image_array.ndim == 2:
         image_array = cv2.cvtColor(image_array, cv2.COLOR_GRAY2BGR)
     elif image_array.shape[2] == 4:
         image_array = image_array[:, :, :3]
-    bgr_image = image_array
 
-    row = bgr_image[y_line]
+    row = image_array[y_line]
     raw_runs = find_color_runs_np(row, color, deviation)
     if not raw_runs:
-        return np.empty((0, 0, 0))
+        return []
 
     width = image_array.shape[1]
     merged_runs = merge_runs_with_margin(raw_runs, margin, width)
-
-    cropped_strips = []
-    for start_x, end_x in merged_runs:
-        strip = image_array[:, start_x:end_x + 1]
-        cropped_strips.append(strip)
-
-    total_width = sum(strip.shape[1] for strip in cropped_strips)
-    stitched = np.zeros((image_array.shape[0], total_width, image_array.shape[2] if len(
-        image_array.shape) == 3 else image_array.shape[0]), dtype=image_array.dtype)
-
-    x_offset = 0
-    for strip in cropped_strips:
-        stitched[:, x_offset:x_offset + strip.shape[1]] = strip
-        x_offset += strip.shape[1]
-
-    return stitched
+    return [image_array[:, start_x:end_x + 1] for start_x, end_x in merged_runs]
 
 
 def resize_template(template, scale_x, scale_y):

@@ -5,12 +5,14 @@ Run from a game sibling (the repo that contains routines.py):
     python core/validate_vod.py path/to.mp4
     python core/validate_vod.py path/to.mp4 --start 50 --end 380 --step 0.5
     python core/validate_vod.py path/to.mp4 --jsonl logs/run.jsonl --metrics logs/run.json
+    python core/validate_vod.py path/to.mp4 --offset 0.25
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import random
 import shutil
 import statistics
 import subprocess
@@ -112,7 +114,7 @@ def _nvidia_smi() -> dict | None:
         )
     except (FileNotFoundError, subprocess.SubprocessError, OSError):
         return None
-    line = out.strip().splitlines()[0] if out.strip() else ""
+    line = out.strip().splitlines()[0] if out.strip().splitlines() else ""
     parts = [p.strip() for p in line.split(",")]
     if len(parts) < 3:
         return None
@@ -153,6 +155,14 @@ def _summarize_samples(resource_samples: list[dict]) -> dict:
     return out
 
 
+def _resolve_offset(offset: float | None) -> float:
+    if offset is None:
+        offset = random.uniform(0.0, 0.5)
+    if not 0.0 <= offset <= 0.5:
+        raise SystemExit("--offset must be between 0 and 0.5")
+    return offset
+
+
 def run(
     path: str,
     start: float,
@@ -162,7 +172,9 @@ def run(
     jsonl_path: str | None,
     metrics_path: str | None,
     sample_every: int,
+    offset: float | None,
 ) -> None:
+    offset = _resolve_offset(offset)
     if hasattr(routines, "ocr_enabled"):
         routines.ocr_enabled = ocr
     elif ocr:
@@ -189,14 +201,14 @@ def run(
 
     base_w = getattr(core, "base_width", 1920)
     base_h = getattr(core, "base_height", 1080)
-    t = start
+    t = start + offset
     prev = None
     frames = 0
     frame_ms: list[float] = []
     resource_samples: list[dict] = []
     wall0 = time.perf_counter()
     print(f"scan {path}")
-    print(f"range {start}s .. {end:.1f}s step {step}s ocr={ocr}")
+    print(f"range {t:.3f}s .. {end:.1f}s step {step}s offset={offset:.3f} ocr={ocr}")
     try:
         while t <= end:
             cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
@@ -239,13 +251,14 @@ def run(
     wall_s = time.perf_counter() - wall0
     print("done", fmt(routines.payload))
 
-    ocr = getattr(core, "ocr_stats", {}) or {}
-    ocr_samples = list(ocr.get("ms_samples") or [])
+    ocr_stats = getattr(core, "ocr_stats", {}) or {}
+    ocr_samples = list(ocr_stats.get("ms_samples") or [])
     metrics = {
         "vod": str(path),
         "start": start,
         "end": end,
         "step": step,
+        "offset": round(offset, 4),
         "frames": frames,
         "wall_s": round(wall_s, 3),
         "frame_ms": {
@@ -253,8 +266,8 @@ def run(
             "p95": _pctile(frame_ms, 95),
         },
         "ocr": {
-            "calls": ocr.get("calls", 0),
-            "ms_total": round(float(ocr.get("ms_total") or 0.0), 2),
+            "calls": ocr_stats.get("calls", 0),
+            "ms_total": round(float(ocr_stats.get("ms_total") or 0.0), 2),
             "mean": round(statistics.fmean(ocr_samples), 2) if ocr_samples else None,
             "p95": _pctile(ocr_samples, 95),
         },
@@ -280,6 +293,13 @@ def main() -> None:
     p.add_argument("--start", type=float, default=0.0, help="start time in seconds")
     p.add_argument("--end", type=float, default=None, help="end time in seconds (default: video duration)")
     p.add_argument("--step", type=float, default=0.5, help="poll interval in seconds")
+    p.add_argument(
+        "--offset",
+        type=float,
+        default=None,
+        help="phase offset in [0, 0.5] seconds added to --start. "
+        "If omitted, a random value in that range is chosen.",
+    )
     p.add_argument("--ocr", action="store_true", help="enable OCR if the sibling supports it")
     p.add_argument("--jsonl", default=None, help="write payload changes as JSONL")
     p.add_argument("--metrics", default=None, help="write resource/timing metrics JSON")
@@ -287,7 +307,7 @@ def main() -> None:
     args = p.parse_args()
     run(
         args.vod, args.start, args.end, args.step, args.ocr,
-        args.jsonl, args.metrics, args.sample_every,
+        args.jsonl, args.metrics, args.sample_every, args.offset,
     )
 
 

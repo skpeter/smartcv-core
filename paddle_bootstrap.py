@@ -1,4 +1,4 @@
-"""First-run PyTorch install. Frozen exe has no torch; wheels go to AppData."""
+"""First-run PaddlePaddle install. Frozen exe has no paddle; wheels go to AppData."""
 from __future__ import annotations
 
 import json
@@ -18,30 +18,40 @@ try:
 except ImportError:
     from gpu_detect import GpuInfo, detect_gpu
 
-TORCH_VERSION = "2.13.0"
-TORCHVISION_VERSION = "0.28.0"
-MARKER_NAME = "smartcv-torch.json"
-# Bump when install policy changes so _sync can repair deps (not full torch).
-BOOTSTRAP_REV = 2
+PADDLE_VERSION = "3.3.0"
+MARKER_NAME = "smartcv-paddle.json"
+BOOTSTRAP_REV = 1
 LOCK_NAME = ".setup.lock"
 STALE_LOCK_SEC = 2 * 60 * 60
 
-# Do not unpack these into the vendor dir — frozen copies stay authoritative.
+# Stay in the freeze / site-packages — do not unpack into vendor dir.
 SKIP_DEPS = {
     "numpy", "pillow", "pil", "opencv-python", "opencv-contrib-python",
-    "setuptools", "pip", "wheel", "easyocr", "requests",
+    "setuptools", "pip", "wheel", "paddleocr", "requests", "certifi",
+    "packaging",
 }
 
-PYPI_SIMPLE = "https://pypi.org/simple"
+INDEX_CPU = "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
+INDEX_CU126 = "https://www.paddlepaddle.org.cn/packages/stable/cu126/"
 
 
-def ensure_torch() -> None:
+def ensure_paddle() -> None:
+    try:
+        from .update import ensure_ca_bundle
+    except ImportError:
+        try:
+            from update import ensure_ca_bundle
+        except ImportError:
+            ensure_ca_bundle = None
+    if ensure_ca_bundle is not None:
+        ensure_ca_bundle()
+
     gpu = detect_gpu()
     variant = pick_variant(gpu)
     pkg_dir = _pkg_dir()
     py_tag = f"{sys.version_info.major}.{sys.version_info.minor}"
 
-    if not getattr(sys, "frozen", False) and _site_torch_ok(variant):
+    if not getattr(sys, "frozen", False) and _site_paddle_ok(variant):
         return
 
     _with_lock(pkg_dir.parent, lambda: _install_if_needed(
@@ -54,26 +64,14 @@ def ensure_torch() -> None:
 def pick_variant(gpu: GpuInfo) -> str:
     if sys.platform == "darwin":
         return "cpu"
-    if gpu.kind == "amd" and sys.platform.startswith("linux"):
-        return "rocm72"
     if gpu.kind != "nvidia":
         return "cpu"
-    driver = gpu.driver or (0,)
-    compute = gpu.compute
-    # CUDA 13 drops < sm_75. Unknown compute → cu126 (Maxwell–Hopper).
-    if compute is not None and compute < 7.5:
-        return "cu126" if driver >= (560,) else "cpu"
-    if driver >= (580,):
-        return "cu130"
-    if driver >= (560,):
-        return "cu126"
-    if gpu.driver is None:
-        return "cu126"
-    return "cpu"
+    # Paddle ships cu126 wheels for driver-capable NVIDIA boxes.
+    return "cu126"
 
 
 def _pkg_dir() -> Path:
-    override = os.environ.get("SMARTCV_TORCH_DIR")
+    override = os.environ.get("SMARTCV_PADDLE_DIR")
     if override:
         return Path(override)
     if sys.platform == "win32":
@@ -82,36 +80,21 @@ def _pkg_dir() -> Path:
         base = Path.home() / "Library" / "Application Support"
     else:
         base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
-    return base / "SmartCV" / "torch"
+    return base / "SmartCV" / "paddle"
 
 
-def _site_torch_ok(wanted: str) -> bool:
-    """Source/dev: reuse existing torch if it covers the wanted backend."""
+def _site_paddle_ok(wanted: str) -> bool:
     import importlib.util
-    spec = importlib.util.find_spec("torch")
+    spec = importlib.util.find_spec("paddle")
     if spec is None or not spec.origin:
         return False
-    version_py = Path(spec.origin).resolve().parent / "version.py"
-    try:
-        text = version_py.read_text(encoding="utf-8")
-    except OSError:
-        return False
-    cuda = None
-    for line in text.splitlines():
-        if line.startswith("cuda") and "=" in line:
-            rhs = line.split("=", 1)[1].strip()
-            if rhs in ("None", "none"):
-                cuda = None
-            else:
-                cuda = rhs.strip("\"'")
-            break
     if wanted == "cpu":
         return True
-    if wanted.startswith("cu"):
-        return bool(cuda)
-    if wanted.startswith("rocm"):
-        return "rocm" in text.lower() or "hip" in text.lower()
-    return True
+    try:
+        import paddle
+        return bool(paddle.device.is_compiled_with_cuda())
+    except Exception:
+        return False
 
 
 def _read_marker(pkg_dir: Path) -> dict | None:
@@ -125,7 +108,7 @@ def _read_marker(pkg_dir: Path) -> dict | None:
 def _write_marker(pkg_dir: Path, variant: str, py_tag: str) -> None:
     data = {
         "variant": variant,
-        "torch": TORCH_VERSION,
+        "paddle": PADDLE_VERSION,
         "py": py_tag,
         "platform": sys.platform,
         "rev": BOOTSTRAP_REV,
@@ -139,13 +122,12 @@ def _marker_ok(pkg_dir: Path, variant: str, py_tag: str) -> bool:
         return False
     if m.get("py") != py_tag or m.get("platform") != sys.platform:
         return False
-    if m.get("torch") != TORCH_VERSION:
+    if m.get("paddle") != PADDLE_VERSION:
         return False
     have = m.get("variant")
     if have == variant:
         return True
-    # CUDA torch can run CPU; skip re-download if forcing CPU.
-    if variant == "cpu" and have and have.startswith("cu"):
+    if variant == "cpu" and have == "cu126":
         return True
     return False
 
@@ -167,7 +149,7 @@ def _with_lock(parent: Path, fn) -> None:
             break
         except FileExistsError:
             if time.time() > deadline:
-                raise RuntimeError("Timed out waiting for PyTorch setup lock")
+                raise RuntimeError("Timed out waiting for PaddlePaddle setup lock")
             time.sleep(0.5)
     try:
         fn()
@@ -175,17 +157,26 @@ def _with_lock(parent: Path, fn) -> None:
         shutil.rmtree(lock, ignore_errors=True)
 
 
+def _project_for(variant: str) -> str:
+    return "paddlepaddle" if variant == "cpu" else "paddlepaddle-gpu"
+
+
+def _index_for(variant: str) -> str:
+    return INDEX_CPU if variant == "cpu" else INDEX_CU126
+
+
 def _install_if_needed(
     pkg_dir: Path, variant: str, py_tag: str, gpu: GpuInfo,
 ) -> None:
-    if _marker_ok(pkg_dir, variant, py_tag) and (pkg_dir / "torch").is_dir():
+    paddle_dir = pkg_dir / "paddle"
+    if _marker_ok(pkg_dir, variant, py_tag) and paddle_dir.is_dir():
         _install_wheels(pkg_dir, variant, repair=True)
         _write_marker(pkg_dir, variant, py_tag)
         return
-    print("SmartCV first-time setup: installing PyTorch (once, ~0.2–3 GB).")
+    print("SmartCV first-time setup: installing PaddlePaddle (once, large download).")
     print(f"GPU: {gpu.reason}")
-    print(f"Selected: torch {TORCH_VERSION} ({variant})")
-    staging = pkg_dir.parent / "torch.staging"
+    print(f"Selected: {_project_for(variant)} {PADDLE_VERSION} ({variant})")
+    staging = pkg_dir.parent / "paddle.staging"
     if staging.exists():
         shutil.rmtree(staging)
     staging.mkdir(parents=True)
@@ -198,24 +189,7 @@ def _install_if_needed(
     except Exception:
         shutil.rmtree(staging, ignore_errors=True)
         raise
-    print("PyTorch setup done.")
-
-
-def _index_for(variant: str) -> str:
-    plat = sys.platform
-    if variant == "cpu":
-        if plat == "win32" or plat == "darwin":
-            return PYPI_SIMPLE
-        return "https://download.pytorch.org/whl/cpu"
-    if variant == "cu126":
-        return "https://download.pytorch.org/whl/cu126"
-    if variant == "cu130":
-        if plat.startswith("linux"):
-            return PYPI_SIMPLE
-        return "https://download.pytorch.org/whl/cu130"
-    if variant == "rocm72":
-        return "https://download.pytorch.org/whl/rocm7.2"
-    return PYPI_SIMPLE
+    print("PaddlePaddle setup done.")
 
 
 def _wheel_tags() -> tuple[str, str]:
@@ -267,7 +241,7 @@ def _list_files(index_url: str, project: str) -> list[dict]:
         full = urljoin(url, href).split("#")[0]
         fname = unquote(full.split("?")[0].split("/")[-1])
         if fname.endswith(".whl"):
-            files.append({"filename": fname, "url": full.split("?")[0], "yanked": False})
+            files.append({"filename": fname, "url": full.split("?")[0]})
     if not files:
         raise FileNotFoundError(f"No wheels listed for {project} at {url}")
     return files
@@ -284,22 +258,12 @@ def _pick_from_index(
     impl, plat = _wheel_tags()
     files = _list_files(index_url, project)
     specset = SpecifierSet(specifier) if specifier else None
-    idx = index_url.lower()
-    require = None
-    if "/cu" in idx:
-        require = "+cu"
-    elif "rocm" in idx:
-        require = "+rocm"
-    elif "/cpu" in idx:
-        require = "+cpu"
     best = None
     best_ver = None
     for f in files:
-        if f.get("yanked") or not f.get("url"):
+        if not f.get("url"):
             continue
         fname = f["filename"]
-        if require and require not in fname:
-            continue
         if not _compat(fname, impl, plat):
             continue
         try:
@@ -333,12 +297,10 @@ def _pick_wheel(
     try:
         return _pick_from_index(index_url, project, version, specifier)
     except (FileNotFoundError, requests.HTTPError):
-        # Never substitute PyPI torch — that is CPU (or a different CUDA).
-        if _pep503_name(project) in ("torch", "torchvision", "torchaudio"):
+        # Paddle index only for paddlepaddle*; other deps from PyPI.
+        if _pep503_name(project) in ("paddlepaddle", "paddlepaddle-gpu"):
             raise
-        if index_url.rstrip("/") != PYPI_SIMPLE:
-            return _pick_from_index(PYPI_SIMPLE, project, version, specifier)
-        raise
+        return _pick_from_index("https://pypi.org/simple", project, version, specifier)
 
 
 def _download(url: str, dest: Path) -> None:
@@ -361,7 +323,6 @@ def _download(url: str, dest: Path) -> None:
 
 
 def _extract_wheel(whl: Path, target: Path) -> str:
-    """Extract wheel; return dist-info METADATA text."""
     metadata = ""
     with zipfile.ZipFile(whl) as zf:
         for info in zf.infolist():
@@ -405,7 +366,6 @@ def _requires(metadata: str) -> list[tuple[str, str | None]]:
 
 
 def _dists(pkg_dir: Path) -> dict[str, tuple[Path, str]]:
-    """canonical name -> (dist-info dir, version string)."""
     found: dict[str, tuple[Path, str]] = {}
     for meta in pkg_dir.glob("*.dist-info/METADATA"):
         name = version = ""
@@ -431,7 +391,6 @@ def _project_ok(
     version: str | None,
     specifier: str | None,
 ) -> tuple[bool, str]:
-    """Return (ok, metadata_text). ok means installed version satisfies pin/spec."""
     from packaging.specifiers import SpecifierSet
     from packaging.version import Version
     dists = _dists(pkg_dir)
@@ -479,17 +438,17 @@ def _install_wheels(target: Path, variant: str, repair: bool = False) -> None:
     downloads = target / "_wheels"
     downloads.mkdir(exist_ok=True)
     seen = {n.lower().replace("_", "-") for n in SKIP_DEPS}
+    project = _project_for(variant)
     queue: list[tuple[str, str | None, str | None]] = [
-        ("torch", TORCH_VERSION, None),
-        ("torchvision", TORCHVISION_VERSION, None),
+        (project, PADDLE_VERSION, None),
     ]
     while queue:
-        project, version, specifier = queue.pop(0)
-        key = project.lower().replace("_", "-")
+        proj, version, specifier = queue.pop(0)
+        key = proj.lower().replace("_", "-")
         if key in seen:
             continue
         seen.add(key)
-        ok, meta = _project_ok(target, project, version, specifier)
+        ok, meta = _project_ok(target, proj, version, specifier)
         if ok:
             for dep, spec in _requires(meta):
                 dkey = dep.lower().replace("_", "-")
@@ -497,10 +456,13 @@ def _install_wheels(target: Path, variant: str, repair: bool = False) -> None:
                     queue.append((dep, None, spec))
             continue
         if repair:
-            print(f"Repairing {project} ({specifier or version or 'latest'})")
-        url, fname = _pick_wheel(index, project, version, specifier)
+            print(f"Repairing {proj} ({specifier or version or 'latest'})")
+        url, fname = _pick_wheel(
+            index if key in ("paddlepaddle", "paddlepaddle-gpu") else "https://pypi.org/simple",
+            proj, version, specifier,
+        )
         whl = downloads / unquote(fname.split("?")[0].split("/")[-1])
-        _wipe_project(target, project)
+        _wipe_project(target, proj)
         _download(url, whl)
         meta = _extract_wheel(whl, target)
         for dep, spec in _requires(meta):
@@ -516,27 +478,23 @@ def _activate(pkg_dir: Path) -> None:
         sys.path.insert(0, path)
     if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
         added = set()
-        patterns = [
-            "torch/lib",
-            "nvidia/*/bin",
-            "nvidia/*/lib",
-            "nvidia/*/lib/x64",
-        ]
-        for pat in patterns:
-            for folder in pkg_dir.glob(pat):
-                if folder.is_dir() and folder not in added:
-                    os.add_dll_directory(str(folder))
-                    added.add(folder)
-        os.environ["PATH"] = os.pathsep.join(
-            [str(p) for p in added] + [os.environ.get("PATH", "")]
-        )
+        for folder in pkg_dir.glob("paddle/libs"):
+            if folder.is_dir() and folder not in added:
+                os.add_dll_directory(str(folder))
+                added.add(folder)
+        for folder in pkg_dir.glob("paddle/**/libs"):
+            if folder.is_dir() and folder not in added:
+                os.add_dll_directory(str(folder))
+                added.add(folder)
+        if added:
+            os.environ["PATH"] = os.pathsep.join(
+                [str(p) for p in added] + [os.environ.get("PATH", "")]
+            )
 
 
 def _verify(variant: str) -> None:
-    import torch
-    import torchvision  # noqa: F401
-    import sympy  # noqa: F401
-    cuda = bool(getattr(torch, "cuda", None) and torch.cuda.is_available())
-    print(f"PyTorch {torch.__version__}  CUDA available: {cuda}")
-    if variant.startswith("cu") and not cuda:
+    import paddle
+    cuda = bool(paddle.device.is_compiled_with_cuda())
+    print(f"PaddlePaddle {paddle.__version__}  CUDA compiled: {cuda}")
+    if variant == "cu126" and not cuda:
         print("CUDA wheel loaded but GPU not usable. OCR will use CPU.")

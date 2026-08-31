@@ -4,10 +4,11 @@ Pillow
 opencv-python
 numpy
 websockets
-# paddlepaddle: GPU/CPU wheel is machine-specific. See install notes in paddle-ocr-v6.
-# GPU: python -m pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/
-# CPU: python -m pip install paddlepaddle==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+# paddlepaddle is machine-specific; first-run paddle_bootstrap installs into AppData.
+# GPU: https://www.paddlepaddle.org.cn/packages/stable/cu126/
+# CPU: https://www.paddlepaddle.org.cn/packages/stable/cpu/
 paddleocr==3.7.0
+certifi
 pygame
 requests
 obsws-python

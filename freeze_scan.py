@@ -1,7 +1,8 @@
-"""Dump hiddenimports that runtime torch/vision/easyocr need from the freeze.
+"""Dump hiddenimports that runtime paddleocr needs from the freeze.
 
-Torch is excluded from PyInstaller analysis, so those imports never get packed.
-Run this WHILE torch is still installed (CI: after pip install, before uninstall).
+PaddlePaddle is excluded from PyInstaller analysis, so those imports never
+get packed. Run WHILE paddleocr is installed (CI: after pip install,
+before uninstalling paddlepaddle).
 
 Writes one module name per line. Also prints a top-level summary.
 """
@@ -13,9 +14,8 @@ from pathlib import Path
 
 # Live in AppData vendor dir — do not require these inside the exe.
 VENDOR_PREFIXES = (
+    "paddle", "paddlepaddle", "paddlepaddle_gpu",
     "torch", "torchvision", "torchaudio", "nvidia",
-    "sympy", "mpmath", "networkx", "jinja2", "markupsafe",
-    "fsspec", "filelock",
 )
 
 
@@ -27,9 +27,7 @@ def scan(vendor: Path | None) -> list[str]:
     if vendor:
         sys.path.insert(0, str(vendor))
     before = set(sys.modules)
-    import torch  # noqa: F401
-    import torchvision  # noqa: F401
-    import easyocr  # noqa: F401
+    import paddleocr  # noqa: F401
     names = []
     for name in sorted(set(sys.modules) - before):
         if not name or name.startswith("_frozen_importlib"):
