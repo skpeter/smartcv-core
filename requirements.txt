@@ -8,6 +8,7 @@ websockets
 # GPU: https://www.paddlepaddle.org.cn/packages/stable/cu126/
 # CPU: https://www.paddlepaddle.org.cn/packages/stable/cpu/
 paddleocr==3.7.0
+python-bidi==0.4.2
 certifi
 pygame
 requests

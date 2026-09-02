@@ -85,13 +85,20 @@ def _pkg_dir() -> Path:
 
 def _site_paddle_ok(wanted: str) -> bool:
     import importlib.util
+    from packaging.version import Version
+
     spec = importlib.util.find_spec("paddle")
     if spec is None or not spec.origin:
+        return False
+    try:
+        import paddle
+        if Version(paddle.__version__.split("+")[0]) < Version(PADDLE_VERSION):
+            return False
+    except Exception:
         return False
     if wanted == "cpu":
         return True
     try:
-        import paddle
         return bool(paddle.device.is_compiled_with_cuda())
     except Exception:
         return False
@@ -236,8 +243,8 @@ def _list_files(index_url: str, project: str) -> list[dict]:
         raise FileNotFoundError(f"No index page for {project} at {url}")
     r.raise_for_status()
     files = []
-    for m in re.finditer(r'href=["\']([^"\']+)["\']', r.text, re.I):
-        href = m.group(1)
+    for m in re.finditer(r"href=(['\"]?)([^'\"\s>]+)\1", r.text, re.I):
+        href = m.group(2)
         full = urljoin(url, href).split("#")[0]
         fname = unquote(full.split("?")[0].split("/")[-1])
         if fname.endswith(".whl"):

@@ -229,57 +229,6 @@ def is_within_deviation(pixel, target_color, deviation):
     return np.all(np.abs(np.array(pixel[:3] if type(pixel) is tuple else [pixel, pixel, pixel]) - np.array(target_color)) <= 255 * deviation)
 
 
-def find_color_runs_np(row, color, deviation=0.1):
-    runs = []
-    in_run = False
-    start_x = 0
-    for x, pixel in enumerate(row):
-        if is_within_deviation(pixel, color, deviation):
-            if not in_run:
-                in_run = True
-                start_x = x
-        else:
-            if in_run:
-                in_run = False
-                runs.append((start_x, x - 1))
-    if in_run:
-        runs.append((start_x, len(row) - 1))
-    return runs
-
-
-def merge_runs_with_margin(runs, margin, width):
-    merged = []
-    for start, end in runs:
-        start = max(start - margin, 0)
-        end = min(end + margin, width - 1)
-        if not merged:
-            merged.append((start, end))
-        else:
-            last_start, last_end = merged[-1]
-            if start <= last_end + 1:
-                merged[-1] = (last_start, max(last_end, end))
-            else:
-                merged.append((start, end))
-    return merged
-
-
-def extract_text_strips(image_array, y_line, color, margin=10, deviation=0.1):
-    """Return left-to-right crops of color runs on y_line (no stitch)."""
-    if image_array.ndim == 2:
-        image_array = cv2.cvtColor(image_array, cv2.COLOR_GRAY2BGR)
-    elif image_array.shape[2] == 4:
-        image_array = image_array[:, :, :3]
-
-    row = image_array[y_line]
-    raw_runs = find_color_runs_np(row, color, deviation)
-    if not raw_runs:
-        return []
-
-    width = image_array.shape[1]
-    merged_runs = merge_runs_with_margin(raw_runs, margin, width)
-    return [image_array[:, start_x:end_x + 1] for start_x, end_x in merged_runs]
-
-
 def resize_template(template, scale_x, scale_y):
     h, w = template.shape[:2]
     return cv2.resize(template, (int(w * scale_x), int(h * scale_y)), interpolation=cv2.INTER_AREA)
