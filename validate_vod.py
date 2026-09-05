@@ -56,12 +56,20 @@ def fmt(payload: dict) -> str:
     if players:
         rounds = "-".join(str(p.get("rounds", "-")) for p in players)
         chars = " vs ".join(str(p.get("character") or "-") for p in players)
+        names = " vs ".join(str(p.get("name") or "-") for p in players)
         bits.append(f"rounds={rounds}")
+        if any(p.get("name") for p in players):
+            bits.append(names)
         bits.append(chars)
     return " ".join(bits)
 
 
 def run(path: str, start: float, end: float | None, step: float, ocr: bool) -> None:
+    """Decode sequentially and drop frames between polls.
+
+    Seeking per poll costs about half a second a frame, which makes a
+    full-VOD sweep unusable; grabbing without decoding is roughly 10x faster.
+    """
     if hasattr(routines, "ocr_enabled"):
         routines.ocr_enabled = ocr
     elif ocr:
@@ -70,26 +78,33 @@ def run(path: str, start: float, end: float | None, step: float, ocr: bool) -> N
     cap = cv2.VideoCapture(path)
     if not cap.isOpened():
         raise SystemExit(f"cannot open {path}")
+    # CAP_PROP_DURATION missing/broken on some OpenCV builds; use frames/fps.
+    fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
     if end is None:
-        # CAP_PROP_DURATION missing/broken on some OpenCV builds; use frames/fps.
         frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-        fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
         if frames > 0 and fps > 0:
             end = frames / fps
         else:
             cap.release()
             raise SystemExit("could not read duration; pass --end")
 
+    if fps <= 0:
+        fps = 60.0
+    skip = max(int(round(fps * step)) - 1, 0)
+    if start:
+        cap.set(cv2.CAP_PROP_POS_MSEC, start * 1000.0)
+
     base_w = getattr(core, "base_width", 1920)
     base_h = getattr(core, "base_height", 1080)
-    t = start
     prev = None
     print(f"scan {path}")
-    print(f"range {start}s .. {end:.1f}s step {step}s ocr={ocr}")
-    while t <= end:
-        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
+    print(f"range {start}s .. {end:.1f}s step {step}s fps={fps:.3f} ocr={ocr}")
+    while True:
         ok, frame = cap.read()
         if not ok:
+            break
+        t = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+        if t > end:
             break
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(rgb)
@@ -105,7 +120,11 @@ def run(path: str, start: float, end: float | None, step: float, ocr: bool) -> N
         if cur != prev:
             print(f"  t={t:7.1f}  {fmt(routines.payload)}")
             prev = cur
-        t += step
+        for _ in range(skip):
+            if not cap.grab():
+                cap.release()
+                print("done", fmt(routines.payload))
+                return
     cap.release()
     print("done", fmt(routines.payload))
 
