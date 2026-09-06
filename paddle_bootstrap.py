@@ -46,6 +46,7 @@ def ensure_paddle() -> None:
     if ensure_ca_bundle is not None:
         ensure_ca_bundle()
 
+    _prepare_pdx_cache_home()
     gpu = detect_gpu()
     variant = pick_variant(gpu)
     pkg_dir = _pkg_dir()
@@ -81,6 +82,13 @@ def _pkg_dir() -> Path:
     else:
         base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
     return base / "SmartCV" / "paddle"
+
+
+def _prepare_pdx_cache_home() -> None:
+    """Point PaddleX model cache at AppData before paddleocr/paddlex import."""
+    if os.environ.get("PADDLE_PDX_CACHE_HOME"):
+        return
+    os.environ["PADDLE_PDX_CACHE_HOME"] = str(_pkg_dir() / "paddlex")
 
 
 def _site_paddle_ok(wanted: str) -> bool:
@@ -130,6 +138,8 @@ def _marker_ok(pkg_dir: Path, variant: str, py_tag: str) -> bool:
     if m.get("py") != py_tag or m.get("platform") != sys.platform:
         return False
     if m.get("paddle") != PADDLE_VERSION:
+        return False
+    if m.get("rev") != BOOTSTRAP_REV:
         return False
     have = m.get("variant")
     if have == variant:
@@ -432,7 +442,24 @@ def _wipe_project(pkg_dir: Path, project: str) -> None:
     dists = _dists(pkg_dir)
     hit = dists.get(key)
     if hit:
-        shutil.rmtree(hit[0], ignore_errors=True)
+        dist_info, _ver = hit
+        record = dist_info / "RECORD"
+        if record.is_file():
+            try:
+                for line in record.read_text(encoding="utf-8", errors="replace").splitlines():
+                    rel = line.split(",", 1)[0].strip()
+                    if not rel or rel.endswith("/"):
+                        continue
+                    dest = (pkg_dir / rel).resolve()
+                    if pkg_dir.resolve() not in dest.parents and dest != pkg_dir.resolve():
+                        continue
+                    if dest.is_file():
+                        dest.unlink(missing_ok=True)
+            except OSError:
+                pass
+        shutil.rmtree(dist_info, ignore_errors=True)
+    if key in ("paddlepaddle", "paddlepaddle-gpu"):
+        shutil.rmtree(pkg_dir / "paddle", ignore_errors=True)
     for child in list(pkg_dir.iterdir()):
         if not child.is_dir():
             continue
@@ -485,14 +512,11 @@ def _activate(pkg_dir: Path) -> None:
         sys.path.insert(0, path)
     if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
         added = set()
-        for folder in pkg_dir.glob("paddle/libs"):
-            if folder.is_dir() and folder not in added:
-                os.add_dll_directory(str(folder))
-                added.add(folder)
-        for folder in pkg_dir.glob("paddle/**/libs"):
-            if folder.is_dir() and folder not in added:
-                os.add_dll_directory(str(folder))
-                added.add(folder)
+        for pattern in ("paddle/libs", "paddle/**/libs", "nvidia/*/bin", "nvidia/**/bin"):
+            for folder in pkg_dir.glob(pattern):
+                if folder.is_dir() and folder not in added:
+                    os.add_dll_directory(str(folder))
+                    added.add(folder)
         if added:
             os.environ["PATH"] = os.pathsep.join(
                 [str(p) for p in added] + [os.environ.get("PATH", "")]

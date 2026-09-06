@@ -14,8 +14,7 @@ from pathlib import Path
 
 # Live in AppData vendor dir — do not require these inside the exe.
 VENDOR_PREFIXES = (
-    "paddle", "paddlepaddle", "paddlepaddle_gpu",
-    "torch", "torchvision", "torchaudio", "nvidia",
+    "paddle", "paddlepaddle", "paddlepaddle_gpu", "nvidia",
 )
 
 

@@ -31,6 +31,11 @@ except ImportError:
     from paddle_bootstrap import ensure_paddle
 ensure_paddle()
 
+try:
+    from .ocr_parse import paddle_texts as _paddle_texts
+except ImportError:
+    from ocr_parse import paddle_texts as _paddle_texts
+
 import obsws_python as obsws
 from datetime import datetime
 import requests
@@ -102,39 +107,6 @@ def _note_ocr(ms: float) -> None:
     samples = ocr_stats["ms_samples"]
     if len(samples) < _OCR_SAMPLE_CAP:
         samples.append(ms)
-
-
-def _paddle_result_dict(res):
-    """PaddleOCR 3.x OCRResult is a dict with rec_texts. .json wraps that in {'res': ...}."""
-    if isinstance(res, dict) and "rec_texts" in res:
-        return res
-    data = getattr(res, "json", res)
-    if callable(data):
-        data = data()
-    if isinstance(data, dict) and isinstance(data.get("res"), dict):
-        data = data["res"]
-    return data if isinstance(data, dict) else {}
-
-
-def _paddle_texts(raw, allowlist: str = None, low_text: float = 0.4):
-    texts = []
-    if not raw:
-        return None
-    for res in raw:
-        data = _paddle_result_dict(res)
-        rec_texts = data.get("rec_texts") or []
-        rec_scores = list(data.get("rec_scores") or [])
-        for i, text in enumerate(rec_texts):
-            if not text:
-                continue
-            score = float(rec_scores[i]) if i < len(rec_scores) else 1.0
-            if score < low_text:
-                continue
-            if allowlist:
-                text = "".join(c for c in text if c in allowlist)
-            if text:
-                texts.append(text)
-    return texts or None
 
 
 def print_with_time(*args, debug_only=False, **kwargs):
@@ -283,17 +255,6 @@ def get_color_match_in_region(img, region: tuple[int, int, int, int], target_col
         return {idx: count / total_pixels for idx, count in matches.items()}
     else:
         return list(matches.values())[0] / total_pixels
-
-
-def remove_neighbor_duplicates(input_list):
-    if not input_list:
-        return []
-
-    result = [input_list[0]]
-    for item in input_list[1:]:
-        if item != result[-1]:
-            result.append(item)
-    return result
 
 
 def crop_inner_area(img, region: tuple[int, int]):

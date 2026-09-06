@@ -1,10 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
-import os
 import sys
 import sysconfig
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_all, collect_submodules
+from PyInstaller.utils.hooks import (
+    collect_all,
+    collect_data_files,
+    collect_submodules,
+    copy_metadata,
+)
 
 block_cipher = None
 
@@ -38,10 +42,38 @@ def _stdlib_hiddenimports():
     return names
 
 
-pil_datas, pil_binaries, pil_hiddenimports = collect_all('PIL')
+def _collect_all(name):
+    try:
+        return collect_all(name)
+    except Exception:
+        try:
+            datas = collect_data_files(name)
+        except Exception:
+            datas = []
+        try:
+            hidden = collect_submodules(name)
+        except Exception:
+            hidden = [name]
+        return datas, [], hidden
+
+
+def _copy_metadata(name):
+    try:
+        return copy_metadata(name, recursive=True)
+    except TypeError:
+        return copy_metadata(name)
+    except Exception:
+        return []
+
+
+pil_datas, pil_binaries, pil_hiddenimports = _collect_all('PIL')
 # Frozen OpenSSL has no system CA path; updater/paddle download need cacert.pem.
-certifi_datas, certifi_binaries, certifi_hiddenimports = collect_all('certifi')
-paddleocr_datas, paddleocr_binaries, paddleocr_hiddenimports = collect_all('paddleocr')
+certifi_datas, certifi_binaries, certifi_hiddenimports = _collect_all('certifi')
+paddleocr_datas, paddleocr_binaries, paddleocr_hiddenimports = _collect_all('paddleocr')
+# paddleocr 3.x imports paddlex at module load; datas + dist-info must be in the freeze.
+paddlex_datas, paddlex_binaries, paddlex_hiddenimports = _collect_all('paddlex')
+paddlex_meta = _copy_metadata('paddlex')
+paddleocr_meta = _copy_metadata('paddleocr')
 
 _scan_file = Path(SPECPATH) / 'paddle_hiddenimports.txt'
 _scan_imports = []
@@ -55,24 +87,24 @@ if _scan_file.exists():
 a = Analysis(
     ['../core/core.py'],
     pathex=['.', '../core', 'core'],
-    binaries=pil_binaries + certifi_binaries + paddleocr_binaries,
-    datas=pil_datas + certifi_datas + paddleocr_datas,
+    binaries=pil_binaries + certifi_binaries + paddleocr_binaries + paddlex_binaries,
+    datas=(pil_datas + certifi_datas + paddleocr_datas + paddlex_datas
+           + paddlex_meta + paddleocr_meta),
     hiddenimports=[
         'numpy._core._exceptions', 'scipy._cyutility',
         'packaging', 'packaging.utils', 'packaging.requirements',
         'packaging.markers', 'packaging.version',
-        'gpu_detect', 'paddle_bootstrap', 'update',
+        'gpu_detect', 'paddle_bootstrap', 'update', 'ocr_parse',
         'certifi',
         'timeit',
         'PIL.ImageDraw', 'PIL.ImageFont', 'PIL.ImageColor',
         'PIL.ImageEnhance', 'PIL.ImageOps', 'PIL.ImageFilter',
     ] + pil_hiddenimports + certifi_hiddenimports + paddleocr_hiddenimports
-      + _stdlib_hiddenimports() + _scan_imports,
+      + paddlex_hiddenimports + _stdlib_hiddenimports() + _scan_imports,
 
-    hookspath=[os.path.join(SPECPATH, 'hooks')],
+    hookspath=[],
     runtime_hooks=[],
-    excludes=['paddle', 'paddlepaddle', 'paddlepaddle_gpu', 'torch',
-              'torchvision', 'torchaudio', 'nvidia'],
+    excludes=['paddle', 'paddlepaddle', 'paddlepaddle_gpu', 'nvidia'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
