@@ -201,6 +201,72 @@ def is_within_deviation(pixel, target_color, deviation):
     return np.all(np.abs(np.array(pixel[:3] if type(pixel) is tuple else [pixel, pixel, pixel]) - np.array(target_color)) <= 255 * deviation)
 
 
+def find_color_runs_np(row, color, deviation=0.1):
+    runs = []
+    in_run = False
+    start_x = 0
+    for x, pixel in enumerate(row):
+        if is_within_deviation(pixel, color, deviation):
+            if not in_run:
+                in_run = True
+                start_x = x
+        else:
+            if in_run:
+                in_run = False
+                runs.append((start_x, x - 1))
+    if in_run:
+        runs.append((start_x, len(row) - 1))
+    return runs
+
+
+def merge_runs_with_margin(runs, margin, width):
+    merged = []
+    for start, end in runs:
+        start = max(start - margin, 0)
+        end = min(end + margin, width - 1)
+        if not merged:
+            merged.append((start, end))
+        else:
+            last_start, last_end = merged[-1]
+            if start <= last_end + 1:
+                merged[-1] = (last_start, max(last_end, end))
+            else:
+                merged.append((start, end))
+    return merged
+
+
+def stitch_text_regions(image_array, y_line, color, margin=10, deviation=0.1):
+    if image_array.ndim == 2:
+        image_array = cv2.cvtColor(image_array, cv2.COLOR_GRAY2BGR)
+    elif image_array.shape[2] == 4:
+        image_array = image_array[:, :, :3]
+    bgr_image = image_array
+
+    row = bgr_image[y_line]
+    raw_runs = find_color_runs_np(row, color, deviation)
+    if not raw_runs:
+        return np.empty((0, 0, 0))
+
+    width = image_array.shape[1]
+    merged_runs = merge_runs_with_margin(raw_runs, margin, width)
+
+    cropped_strips = []
+    for start_x, end_x in merged_runs:
+        strip = image_array[:, start_x:end_x + 1]
+        cropped_strips.append(strip)
+
+    total_width = sum(strip.shape[1] for strip in cropped_strips)
+    stitched = np.zeros((image_array.shape[0], total_width, image_array.shape[2] if len(
+        image_array.shape) == 3 else image_array.shape[0]), dtype=image_array.dtype)
+
+    x_offset = 0
+    for strip in cropped_strips:
+        stitched[:, x_offset:x_offset + strip.shape[1]] = strip
+        x_offset += strip.shape[1]
+
+    return stitched
+
+
 def resize_template(template, scale_x, scale_y):
     h, w = template.shape[:2]
     return cv2.resize(template, (int(w * scale_x), int(h * scale_y)), interpolation=cv2.INTER_AREA)
@@ -255,6 +321,17 @@ def get_color_match_in_region(img, region: tuple[int, int, int, int], target_col
         return {idx: count / total_pixels for idx, count in matches.items()}
     else:
         return list(matches.values())[0] / total_pixels
+
+
+def remove_neighbor_duplicates(input_list):
+    if not input_list:
+        return []
+
+    result = [input_list[0]]
+    for item in input_list[1:]:
+        if item != result[-1]:
+            result.append(item)
+    return result
 
 
 def crop_inner_area(img, region: tuple[int, int]):
