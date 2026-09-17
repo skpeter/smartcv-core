@@ -1,9 +1,7 @@
 name: Notify game repos
 
 on:
-  push:
-    branches:
-      - main
+  # Auto-bump paused until sibling paddle CI is on main; trigger manually if needed.
   workflow_dispatch:
 
 jobs:
