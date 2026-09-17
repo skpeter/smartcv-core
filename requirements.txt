@@ -4,8 +4,14 @@ Pillow
 opencv-python
 numpy
 websockets
-easyocr
+# paddlepaddle is machine-specific; first-run paddle_bootstrap installs into AppData.
+# GPU: https://www.paddlepaddle.org.cn/packages/stable/cu126/
+# CPU: https://www.paddlepaddle.org.cn/packages/stable/cpu/
+paddleocr==3.7.0
+python-bidi==0.4.2
+certifi
 pygame
 requests
 obsws-python
 packaging
+psutil

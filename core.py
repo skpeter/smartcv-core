@@ -26,10 +26,15 @@ else:
         ensure_ca_bundle()
 
 try:
-    from .torch_bootstrap import ensure_torch
+    from .paddle_bootstrap import ensure_paddle
 except ImportError:
-    from torch_bootstrap import ensure_torch
-ensure_torch()
+    from paddle_bootstrap import ensure_paddle
+ensure_paddle()
+
+try:
+    from .ocr_parse import paddle_texts as _paddle_texts
+except ImportError:
+    from ocr_parse import paddle_texts as _paddle_texts
 
 import obsws_python as obsws
 from datetime import datetime
@@ -41,7 +46,7 @@ import asyncio
 import websockets
 import json
 import gc
-import easyocr
+from paddleocr import PaddleOCR
 import threading
 import numpy as np
 import cv2
@@ -72,13 +77,36 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 config = configparser.ConfigParser()
 config.read('config.ini')
 processing_message = False
-reader = easyocr.Reader(['en'])
+reader = PaddleOCR(
+    ocr_version="PP-OCRv6",
+    text_detection_model_name="PP-OCRv6_small_det",
+    text_recognition_model_name="PP-OCRv6_small_rec",
+    use_doc_orientation_classify=False,
+    use_doc_unwarping=False,
+    use_textline_orientation=False,
+)
+ocr_stats = {"calls": 0, "ms_total": 0.0, "ms_samples": []}
+_OCR_SAMPLE_CAP = 20000
 refresh_rate = config.getfloat('settings', 'refresh_rate')
 capture_mode = config.get('settings', 'capture_mode')
 executable_title = config.get('settings', 'executable_title', fallback="")
 obs = None
 base_height = 1080
 base_width = 1920
+
+
+def reset_ocr_stats() -> None:
+    ocr_stats["calls"] = 0
+    ocr_stats["ms_total"] = 0.0
+    ocr_stats["ms_samples"] = []
+
+
+def _note_ocr(ms: float) -> None:
+    ocr_stats["calls"] += 1
+    ocr_stats["ms_total"] += ms
+    samples = ocr_stats["ms_samples"]
+    if len(samples) < _OCR_SAMPLE_CAP:
+        samples.append(ms)
 
 
 def print_with_time(*args, debug_only=False, **kwargs):
@@ -331,14 +359,13 @@ def read_text(img, region: tuple[int, int, int, int] = None, colored: bool = Fal
         img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     if contrast:
         img = cv2.convertScaleAbs(img, alpha=contrast, beta=-(contrast * 50))
+    if len(img.shape) == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
-    result = reader.readtext(img, paragraph=False,
-                             allowlist=allowlist, low_text=low_text)
-
-    if result:
-        result = [res[1] for res in result]
-    else:
-        result = None
+    t0 = time.perf_counter()
+    raw = reader.predict(img)
+    _note_ocr((time.perf_counter() - t0) * 1000.0)
+    result = _paddle_texts(raw, allowlist=allowlist, low_text=low_text)
     if config.getboolean('settings', 'debug_mode', fallback=False):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"dev/{timestamp}_{'_'.join(result) if isinstance(result, list) else ''}_{np.random.randint(10, 100):02d}.png"

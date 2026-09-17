@@ -1,7 +1,7 @@
 """Self-update from GitHub latest release.zip / source.zip.
 
 Stdlib-first. Optional certifi when present (frozen OpenSSL often has no CA).
-Runs before torch bootstrap. Git clones and DEV builds skip.
+Runs before paddle bootstrap. Git clones and DEV builds skip.
 """
 from __future__ import annotations
 
