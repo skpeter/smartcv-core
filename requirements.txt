@@ -1,14 +1,19 @@
 mss
 pygetwindow
 Pillow
-opencv-python
 numpy
 websockets
 # paddlepaddle is machine-specific; first-run paddle_bootstrap installs into AppData.
 # GPU: https://www.paddlepaddle.org.cn/packages/stable/cu126/
 # CPU: https://www.paddlepaddle.org.cn/packages/stable/cpu/
 paddleocr==3.7.0
+# paddlex checks these by distribution name before it will create an OCR pipeline.
+imagesize
+opencv-contrib-python==4.10.0.84
+pyclipper
+pypdfium2>=4
 python-bidi==0.4.2
+shapely
 certifi
 pygame
 requests

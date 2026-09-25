@@ -78,6 +78,22 @@ paddlex_datas, paddlex_binaries, paddlex_hiddenimports = _collect_all('paddlex')
 paddlex_meta = _copy_metadata('paddlex')
 paddleocr_meta = _copy_metadata('paddleocr')
 
+# OCR pipeline refuses to start unless these dists are visible to importlib.metadata.
+_OCR_CORE = {
+    'imagesize': 'imagesize',
+    'opencv-contrib-python': 'cv2',
+    'pyclipper': 'pyclipper',
+    'pypdfium2': 'pypdfium2',
+    'python-bidi': 'bidi',
+    'shapely': 'shapely',
+}
+ocr_datas, ocr_binaries, ocr_hiddenimports = [], [], []
+for _dist, _mod in _OCR_CORE.items():
+    _d, _b, _h = _collect_all(_mod)
+    ocr_datas += _d + _copy_metadata(_dist)
+    ocr_binaries += _b
+    ocr_hiddenimports += _h
+
 _scan_file = Path(SPECPATH) / 'paddle_hiddenimports.txt'
 _scan_imports = []
 if _scan_file.exists():
@@ -91,10 +107,10 @@ a = Analysis(
     ['../core/core.py'],
     pathex=['.', '../core', 'core'],
     binaries=(pil_binaries + certifi_binaries + paddleocr_binaries + paddlex_binaries
-              + setuptools_binaries + pkg_resources_binaries),
+              + setuptools_binaries + pkg_resources_binaries + ocr_binaries),
     datas=(pil_datas + certifi_datas + paddleocr_datas + paddlex_datas
            + paddlex_meta + paddleocr_meta
-           + setuptools_datas + pkg_resources_datas),
+           + setuptools_datas + pkg_resources_datas + ocr_datas),
     hiddenimports=[
         'numpy._core._exceptions', 'scipy._cyutility',
         'packaging', 'packaging.utils', 'packaging.requirements',
@@ -113,7 +129,8 @@ a = Analysis(
         'PIL.ImageEnhance', 'PIL.ImageOps', 'PIL.ImageFilter',
     ] + pil_hiddenimports + certifi_hiddenimports + paddleocr_hiddenimports
       + paddlex_hiddenimports + setuptools_hiddenimports
-      + pkg_resources_hiddenimports + _stdlib_hiddenimports() + _scan_imports,
+      + pkg_resources_hiddenimports + ocr_hiddenimports
+      + _stdlib_hiddenimports() + _scan_imports,
 
     hookspath=[],
     runtime_hooks=[],
