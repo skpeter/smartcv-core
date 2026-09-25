@@ -15,3 +15,5 @@ requests
 obsws-python
 packaging
 psutil
+# Paddle imports setuptools.command.easy_install at startup. 80.3 removed it.
+setuptools>=69,<80.3

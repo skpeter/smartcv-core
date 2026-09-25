@@ -531,7 +531,55 @@ def _activate(pkg_dir: Path) -> None:
             )
 
 
+def _stub_removed_setuptools() -> None:
+    """Paddle subclasses setuptools commands while importing.
+
+    setuptools 80.3 dropped easy_install. Those commands only run for custom
+    ops, which OCR does not compile. A stand-in lets import paddle finish
+    when the frozen setuptools no longer ships the module.
+    """
+    import importlib
+    import types
+
+    class _Cmd:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def initialize_options(self):
+            pass
+
+        def finalize_options(self):
+            pass
+
+        def run(self, *args, **kwargs):
+            pass
+
+    modules = {
+        "setuptools.command.easy_install": {"easy_install": _Cmd},
+        "setuptools.command.build_ext": {"build_ext": _Cmd},
+        "setuptools.command.install": {"install": _Cmd},
+        "distutils.command.build": {"build": _Cmd},
+    }
+    for name, attrs in modules.items():
+        try:
+            importlib.import_module(name)
+            continue
+        except ModuleNotFoundError:
+            pass
+        parent_name, _, child = name.rpartition(".")
+        try:
+            parent = importlib.import_module(parent_name)
+        except ModuleNotFoundError:
+            continue
+        mod = types.ModuleType(name)
+        for key, value in attrs.items():
+            setattr(mod, key, value)
+        sys.modules[name] = mod
+        setattr(parent, child, mod)
+
+
 def _verify(variant: str) -> None:
+    _stub_removed_setuptools()
     import paddle
     cuda = bool(paddle.device.is_compiled_with_cuda())
     print(f"PaddlePaddle {paddle.__version__}  CUDA compiled: {cuda}")

@@ -67,6 +67,9 @@ def _copy_metadata(name):
 
 
 pil_datas, pil_binaries, pil_hiddenimports = _collect_all('PIL')
+# Paddle imports these at startup, but paddle itself is excluded from analysis.
+setuptools_datas, setuptools_binaries, setuptools_hiddenimports = _collect_all('setuptools')
+pkg_resources_datas, pkg_resources_binaries, pkg_resources_hiddenimports = _collect_all('pkg_resources')
 # Frozen OpenSSL has no system CA path; updater/paddle download need cacert.pem.
 certifi_datas, certifi_binaries, certifi_hiddenimports = _collect_all('certifi')
 paddleocr_datas, paddleocr_binaries, paddleocr_hiddenimports = _collect_all('paddleocr')
@@ -87,9 +90,11 @@ if _scan_file.exists():
 a = Analysis(
     ['../core/core.py'],
     pathex=['.', '../core', 'core'],
-    binaries=pil_binaries + certifi_binaries + paddleocr_binaries + paddlex_binaries,
+    binaries=(pil_binaries + certifi_binaries + paddleocr_binaries + paddlex_binaries
+              + setuptools_binaries + pkg_resources_binaries),
     datas=(pil_datas + certifi_datas + paddleocr_datas + paddlex_datas
-           + paddlex_meta + paddleocr_meta),
+           + paddlex_meta + paddleocr_meta
+           + setuptools_datas + pkg_resources_datas),
     hiddenimports=[
         'numpy._core._exceptions', 'scipy._cyutility',
         'packaging', 'packaging.utils', 'packaging.requirements',
@@ -97,10 +102,18 @@ a = Analysis(
         'gpu_detect', 'paddle_bootstrap', 'update', 'ocr_parse',
         'certifi',
         'timeit',
+        'setuptools.command.easy_install',
+        'setuptools.command.build_ext',
+        'setuptools.command.install',
+        'setuptools.command.build',
+        'distutils.command.build',
+        'distutils.errors',
+        'pkg_resources',
         'PIL.ImageDraw', 'PIL.ImageFont', 'PIL.ImageColor',
         'PIL.ImageEnhance', 'PIL.ImageOps', 'PIL.ImageFilter',
     ] + pil_hiddenimports + certifi_hiddenimports + paddleocr_hiddenimports
-      + paddlex_hiddenimports + _stdlib_hiddenimports() + _scan_imports,
+      + paddlex_hiddenimports + setuptools_hiddenimports
+      + pkg_resources_hiddenimports + _stdlib_hiddenimports() + _scan_imports,
 
     hookspath=[],
     runtime_hooks=[],
