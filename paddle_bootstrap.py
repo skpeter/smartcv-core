@@ -221,7 +221,24 @@ def _wheel_tags() -> tuple[str, str]:
     return impl, plat
 
 
-def _compat(filename: str, impl: str, plat: str) -> bool:
+# Cached packaging.tags.sys_tags() for this interpreter.
+_COMPAT_TAGS: set | None = None
+
+
+def _compatible_tags() -> set:
+    global _COMPAT_TAGS
+    if _COMPAT_TAGS is None:
+        from packaging.tags import sys_tags
+        _COMPAT_TAGS = set(sys_tags())
+    return _COMPAT_TAGS
+
+
+def _compat(filename: str) -> bool:
+    """True when this interpreter can install the wheel.
+
+    abi3 wheels are tagged with the oldest CPython they support (cp38, cp310),
+    not the running version. An exact cp312 match misses safetensors>=0.6.
+    """
     from packaging.utils import parse_wheel_filename
     name = unquote(filename.split("?")[0].split("/")[-1])
     if not name.endswith(".whl"):
@@ -230,16 +247,7 @@ def _compat(filename: str, impl: str, plat: str) -> bool:
         _n, _v, _b, tags = parse_wheel_filename(name)
     except Exception:
         return False
-    for tag in tags:
-        interp_ok = (
-            tag.interpreter in (impl, "py3", "py2.py3")
-            or tag.interpreter.replace("cp", "") == impl.replace("cp", "")
-        )
-        abi_ok = tag.abi in ("none", "abi3", impl)
-        plat_ok = plat in tag.platform or tag.platform == "any"
-        if interp_ok and abi_ok and plat_ok:
-            return True
-    return False
+    return bool(set(tags) & _compatible_tags())
 
 
 def _pep503_name(project: str) -> str:
@@ -281,7 +289,7 @@ def _pick_from_index(
         if not f.get("url"):
             continue
         fname = f["filename"]
-        if not _compat(fname, impl, plat):
+        if not _compat(fname):
             continue
         try:
             _n, ver, _b, _t = parse_wheel_filename(
