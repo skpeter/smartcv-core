@@ -3,6 +3,11 @@ import base64
 import os
 import sys
 
+# Paddle 3.3 oneDNN cannot convert PP-OCRv6 PIR double-array attributes.
+# CPU inference then raises NotImplementedError in onednn_instruction.cc.
+os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
+os.environ.setdefault("FLAGS_use_mkldnn", "0")
+
 _parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if _parent_dir not in sys.path:
     sys.path.insert(0, _parent_dir)
@@ -84,6 +89,7 @@ reader = PaddleOCR(
     use_doc_orientation_classify=False,
     use_doc_unwarping=False,
     use_textline_orientation=False,
+    enable_mkldnn=False,
 )
 ocr_stats = {"calls": 0, "ms_total": 0.0, "ms_samples": []}
 _OCR_SAMPLE_CAP = 20000
