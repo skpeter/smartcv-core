@@ -18,7 +18,8 @@ try:
 except ImportError:
     from gpu_detect import GpuInfo, detect_gpu
 
-PADDLE_VERSION = "3.3.0"
+# 3.3.x oneDNN crashes on PP-OCRv6. 3.2.2 keeps that CPU backend.
+PADDLE_VERSION = "3.2.2"
 MARKER_NAME = "smartcv-paddle.json"
 BOOTSTRAP_REV = 1
 LOCK_NAME = ".setup.lock"
@@ -100,7 +101,7 @@ def _site_paddle_ok(wanted: str) -> bool:
         return False
     try:
         import paddle
-        if Version(paddle.__version__.split("+")[0]) < Version(PADDLE_VERSION):
+        if Version(paddle.__version__.split("+")[0]) != Version(PADDLE_VERSION):
             return False
     except Exception:
         return False
