@@ -137,14 +137,24 @@ def flush_log():
         _log_buffer.clear()
 
 
-def print_with_time(*args, debug_only=False, **kwargs):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def print_with_time(*args, debug_only=False, with_time=True, **kwargs):
+    """Print to console and buffer the same text for the session log.
+
+    with_time=False appends to the current line (e.g. "No match" after a
+    probe printed with end=' ') without a new timestamp, matching console.
+    """
     if debug_only and not config.getboolean('settings', 'debug_mode', fallback=False):
         return
-    print(timestamp, "-", *args, **kwargs)
     sep = kwargs.get("sep", " ")
     end = kwargs.get("end", "\n")
-    line = sep.join(str(a) for a in (timestamp, "-", *args)) + end
+    if with_time:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(timestamp, "-", *args, **kwargs)
+        parts = (timestamp, "-", *args)
+    else:
+        print(*args, **kwargs)
+        parts = args
+    line = sep.join(str(a) for a in parts) + end
     with _log_lock:
         _log_buffer.append(line)
 
@@ -192,11 +202,11 @@ def capture_screen(payload):
             if windows:
                 window = windows[0]
                 if capture_attempts > 0:
-                    print(f"Found executable {executable_title}")
+                    print_with_time(f"Found executable {executable_title}")
                 break
             else:
                 if capture_attempts < 1:
-                    print(
+                    print_with_time(
                         f"Executable {executable_title} not found. Ensure it is running and visible.")
                 capture_attempts += 1
                 payload['state'] = None
@@ -446,22 +456,24 @@ async def send_data(payload, websocket):
                 continue
             size = len(data.encode('utf-8'))
             if size > 1024 * 1024:  # 1MB
-                print(f"Warning: Large payload size ({size} bytes)")
+                print_with_time(f"Warning: Large payload size ({size} bytes)")
             await websocket.send(json.dumps(payload))
             await asyncio.sleep(refresh_rate)
     except websockets.exceptions.ConnectionClosedOK:
         pass
     except websockets.exceptions.ConnectionClosedError as e:
         if "no close frame received or sent" not in str(e):
-            print(f"Connection error from client: {e}")
+            print_with_time(f"Connection error from client: {e}")
 
 
 async def receive_data(payload: dict, websocket):
     try:
         async for message in websocket:
             if "confirm-entrants:" in message and processing_message is False and config.get('settings', 'capture_mode') == 'game':
-                print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "- Received request to confirm players:",
-                      str(message).replace("confirm-entrants:", "").strip().split(":"))
+                print_with_time(
+                    "Received request to confirm players:",
+                    str(message).replace("confirm-entrants:", "").strip().split(":"),
+                )
                 if str(payload['players'][0]['name']) in str(message) and str(payload['players'][1]['name']) in str(message):
                     return True
 
@@ -485,7 +497,7 @@ async def receive_data(payload: dict, websocket):
         pass
     except websockets.exceptions.ConnectionClosedError as e:
         if "no close frame received or sent" not in str(e):
-            print(f"Connection error from client: {e}")
+            print_with_time(f"Connection error from client: {e}")
 
 
 async def handle_connection(websocket, payload: dict):
@@ -524,8 +536,9 @@ if __name__ == "__main__":
         routines.client_name,), daemon=True).start()
     websocket_thread = threading.Thread(
         target=start_websocket_server, args=(payload,), daemon=True).start()
-    print("All systems go. Please head to the character or stage selection screen to start detection.\n")
-    print(f"Session log: {_log_path}\n")
+    print_with_time(
+        "All systems go. Please head to the character or stage selection screen to start detection.")
+    print_with_time(f"Session log: {_log_path}")
     run_detection_loop(routines.states_to_functions, payload)
     while True:
         time.sleep(1)
