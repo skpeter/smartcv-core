@@ -93,6 +93,10 @@ executable_title = config.get('settings', 'executable_title', fallback="")
 obs = None
 base_height = 1080
 base_width = 1920
+_log_buffer: List[str] = []
+_log_lock = threading.Lock()
+_log_file = None
+_log_path = None
 
 
 def reset_ocr_stats() -> None:
@@ -109,11 +113,40 @@ def _note_ocr(ms: float) -> None:
         samples.append(ms)
 
 
+def _ensure_log_file():
+    global _log_file, _log_path
+    if _log_file is not None:
+        return
+    os.makedirs("logs", exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    _log_path = os.path.join("logs", f"smartcv_{stamp}.log")
+    _log_file = open(_log_path, "a", encoding="utf-8")
+
+
+def flush_log():
+    """Write buffered console lines once per poll cycle."""
+    with _log_lock:
+        if not _log_buffer:
+            return
+        try:
+            _ensure_log_file()
+            _log_file.write("".join(_log_buffer))
+            _log_file.flush()
+        except OSError:
+            pass
+        _log_buffer.clear()
+
+
 def print_with_time(*args, debug_only=False, **kwargs):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if debug_only and not config.getboolean('settings', 'debug_mode', fallback=False):
         return
     print(timestamp, "-", *args, **kwargs)
+    sep = kwargs.get("sep", " ")
+    end = kwargs.get("end", "\n")
+    line = sep.join(str(a) for a in (timestamp, "-", *args)) + end
+    with _log_lock:
+        _log_buffer.append(line)
 
 
 def capture_screen(payload):
@@ -391,9 +424,12 @@ def run_detection_loop(
                     continue
                 func(payload, img, scale_x, scale_y)
         except Exception as e:
-            print(f"Error: {str(e)}")
-            print("Stack trace:")
-            print(traceback.format_exc())
+            print_with_time(f"Error: {str(e)}")
+            print_with_time("Stack trace:")
+            print_with_time(traceback.format_exc().rstrip())
+        finally:
+            # One file write per poll so bursty console output stays cheap on disk.
+            flush_log()
         elapsed = time.time() - start_time
         sleep_time = refresh_rate - elapsed
         if sleep_time > 0:
@@ -481,11 +517,15 @@ def start_websocket_server(payload: dict):
 
 
 if __name__ == "__main__":
+    import atexit
+    atexit.register(flush_log)
+    _ensure_log_file()
     broadcast_thread = threading.Thread(target=broadcast.broadcast_device_info, args=(
         routines.client_name,), daemon=True).start()
     websocket_thread = threading.Thread(
         target=start_websocket_server, args=(payload,), daemon=True).start()
     print("All systems go. Please head to the character or stage selection screen to start detection.\n")
+    print(f"Session log: {_log_path}\n")
     run_detection_loop(routines.states_to_functions, payload)
     while True:
         time.sleep(1)
